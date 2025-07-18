@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clients | Trainer App</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #f4f4f4;
+      transition: direction 0.3s;
+    }
+
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .lang-toggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-around;
+      background: #34495e;
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    main {
+      padding: 1.5rem;
+      display: flex;
+      gap: 1rem;
+      align-items: stretch;
+    }
+
+    .card {
+      background: white;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .client-name {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+
+    .client-info {
+      font-size: 0.95rem;
+      color: #555;
+    }
+
+    .membership-status {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-left: 8px;
+    }
+
+    .status-active {
+      background-color: green;
+    }
+
+    .status-inactive {
+      background-color: red;
+    }
+
+    .pane-left {
+      flex: 1;
+    }
+
+    .pane-right {
+      flex: 1;
+      background: #ffffff;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .split-line {
+      width: 1px;
+      background: #ccc;
+      margin: 0 0.5rem;
+    }
+
+    .vl {
+      border-left: 3px solid #ccc;
+      height: auto;
+      margin: 0 1rem;
+    }
+    
+    @media (max-width: 600px) {
+      nav {
+        flex-direction: column;
+        align-items: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button onclick="setLanguage('en')">English</button>
+    <button onclick="setLanguage('ar')">العربية</button>
+  </div>
+
+  <header>
+    <h1 id="clients-header">Clients</h1>
+    <p id="clients-subtext">View and manage your current clients</p>
+  </header>
+
+  <nav>
+    <a href="trainer_home.html" id="nav-home">Home</a>
+    <a href="clients.html" id="nav-clients">Clients</a>
+    <a href="plans.html" id="nav-plans">Plans</a>
+    <a href="#" id="nav-progress">Progress</a>
+    <a href="settings.html" id="nav-settings">Settings</a>
+  </nav>
+
+  <main>
+    <div class="pane-left">
+      <div style="margin-bottom: 1rem;">
+        <input type="text" id="search-input" placeholder="Search by name..." style="padding: 0.5rem; width: 60%;">
+        <select id="membership-filter" style="padding: 0.5rem;">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div id="client-list"></div>
+    </div>
+    <div class="split-line"></div>
+  </main>
+
+  <script src="../js/lang.js"></script>
+  <script>
+    let allClients = [];
+
+    function renderClients(clients) {
+      const list = document.getElementById("client-list");
+      list.innerHTML = "";
+      if (!clients.length) {
+        list.innerHTML = "<p>No clients found.</p>";
+        return;
+      }
+
+      clients.forEach(client => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.cursor = "pointer";
+        card.innerHTML = `
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex: 1; cursor: pointer;" onclick="window.location.href='client_detail.html?id=${client.id}'">
+              <div class="client-name">
+                ${client.full_name}
+                <span class="membership-status ${client.membership_active ? 'status-active' : 'status-inactive'}"></span>
+              </div>
+              <div class="client-info">
+                <p>Email: ${client.email || "—"}</p>
+                <p>Age: ${client.age || "—"}</p>
+                <p>Weight: ${client.weight || "—"} kg</p>
+                <p>Goal: ${client.goal || "—"}</p>
+                <p>Notes: ${client.notes || "—"}</p>
+              </div>
+            </div>
+
+            <div class="vl"></div>
+
+            <div style="flex: 1; cursor: pointer;" onclick="window.location.href='client_plan.html?id=${client.id}'">
+              <strong>Training Plan:</strong> <span id="training-${client.id}">Loading...</span><br>
+              <strong>Diet Plan:</strong> <span id="diet-${client.id}">Loading...</span>
+            </div>
+          </div>
+        `;
+        // Fetch and fill plan data
+        fetch(`http://localhost:8000/api/client_plans/${client.id}`)
+          .then(r => {
+            if (!r.ok) throw new Error("No plan");
+            return r.json();
+          })
+          .then(plan => {
+            if (!plan || !plan.plan_id || !plan.type || !plan.name) {
+              document.getElementById(`training-${client.id}`).textContent = "No plan assigned";
+              document.getElementById(`diet-${client.id}`).textContent = "No plan assigned";
+              return;
+            }
+            document.getElementById(`training-${client.id}`).textContent = plan.type === "workout" ? plan.name : "—";
+            document.getElementById(`diet-${client.id}`).textContent = plan.type === "meals" ? plan.name : "—";
+          })
+          .catch(() => {
+            document.getElementById(`training-${client.id}`).textContent = "No plan assigned";
+            document.getElementById(`diet-${client.id}`).textContent = "No plan assigned";
+          });
+
+        list.appendChild(card);
+      });
+    }
+
+    function filterAndRender() {
+      const searchVal = document.getElementById("search-input").value.toLowerCase();
+      const statusFilter = document.getElementById("membership-filter").value;
+
+      const filtered = allClients.filter(client => {
+        const nameMatch = client.full_name.toLowerCase().includes(searchVal);
+        const statusMatch = statusFilter === "all" ||
+          (statusFilter === "active" && client.membership_active) ||
+          (statusFilter === "inactive" && !client.membership_active);
+        return nameMatch && statusMatch;
+      });
+
+      renderClients(filtered);
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/clients/");
+        allClients = await res.json();
+        renderClients(allClients);
+
+        document.getElementById("search-input").addEventListener("input", filterAndRender);
+        document.getElementById("membership-filter").addEventListener("change", filterAndRender);
+      } catch (err) {
+        document.getElementById("client-list").innerHTML = `<p>Error loading clients: ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

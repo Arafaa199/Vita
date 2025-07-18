@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plans</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #f4f4f4;
+    }
+
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .lang-toggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-around;
+      background: #34495e;
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    main {
+      padding: 1.5rem;
+    }
+
+    .card {
+      background: white;
+      padding: 1.2rem;
+      margin: 1rem 0;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .card h2 {
+      margin-top: 0;
+    }
+
+    .plan-list {
+      list-style: none;
+      padding: 0;
+    }
+
+    .plan-list li {
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <div class="lang-toggle">
+    <button onclick="setLanguage('en')">English</button>
+    <button onclick="setLanguage('ar')">العربية</button>
+  </div>
+
+  <header>
+    <h1 id="plans-title">Plans</h1>
+    <p id="plans-description">Manage, create and assign workout or meal plans</p>
+  </header>
+
+  <nav>
+    <a href="trainer_home.html" id="nav-home">Home</a>
+    <a href="clients.html" id="nav-clients">Clients</a>
+    <a href="plans.html" id="nav-plans">Plans</a>
+    <a href="#" id="nav-progress">Progress</a>
+    <a href="settings.html" id="nav-settings">Settings</a>
+  </nav>
+
+  <main>
+    <div class="card">
+      <h2 id="existing-plans">Existing Plans</h2>
+        <ul class="plan-list" id="plan-list">
+        <!--plans will display here -->
+        </ul>
+    </div>
+
+    <div class="card">
+      <h2 id="create-new-plan">Create New Plan</h2>
+      <p><a href="add_plan.html" id="add-plan">➕ New Plan (Coming Soon)</a></p>
+    </div>
+  </main>
+
+  <script src="../js/lang.js"></script>
+  <script src="../js/fetch_plan.js"></script>
+</body>
+</html>

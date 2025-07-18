@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Clients | Trainer App</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: linear-gradient(to bottom, #001f4d, #007acc);
+      background-image: radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px),
+                        radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px);
+      background-size: 20px 20px;
+      background-position: 0 0, 10px 10px;
+      color: #fff;
+    }
+
+    header {
+      background-color: #2c3e50;
+      color: #fff;
+      padding: 1.5rem;
+      text-align: center;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      gap: 1rem;
+      background: #34495e;
+      padding: 0.75rem 0;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+    }
+
+    nav a:hover {
+      background: #2c3e50;
+    }
+
+    .lang-toggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+
+    main {
+      display: flex;
+      padding: 2rem;
+      gap: 2rem;
+    }
+
+    .pane-left,
+    .pane-right {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      transition: box-shadow 0.2s ease;
+    }
+
+    .card:hover {
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+
+    .client-name {
+      font-size: 1.2rem;
+      font-weight: bold;
+      margin-bottom: 0.5rem;
+    }
+
+    .client-info p {
+      margin: 0.2rem 0;
+    }
+
+    .membership-status {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-left: 8px;
+    }
+
+    .status-active {
+      background-color: green;
+    }
+
+    .status-inactive {
+      background-color: red;
+    }
+
+    input,
+    select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      margin-bottom: 1rem;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    #search-input {
+      width: 60%;
+      margin-right: 1rem;
+    }
+
+    .split-line {
+      width: 1px;
+      background: #ddd;
+    }
+
+    .vl {
+      border-left: 2px solid #eee;
+      height: auto;
+      margin: 0 1rem;
+    }
+
+    @media (max-width: 768px) {
+      nav {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      main {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button onclick="setLanguage('en')">English</button>
+    <button onclick="setLanguage('ar')">العربية</button>
+  </div>
+
+  <header>
+    <h1 id="clients-header">Clients</h1>
+    <p id="clients-subtext">View and manage your current clients</p>
+  </header>
+
+  <nav>
+    <a href="trainer_home.html" id="nav-home">Home</a>
+    <a href="clients.html" id="nav-clients">Clients</a>
+    <a href="plans.html" id="nav-plans">Plans</a>
+    <a href="#" id="nav-progress">Progress</a>
+    <a href="settings.html" id="nav-settings">Settings</a>
+  </nav>
+
+  <main>
+    <div class="pane-left">
+      <div style="margin-bottom: 1rem;">
+        <input type="text" id="search-input" placeholder="Search by name..." style="padding: 0.5rem; width: 60%;">
+        <select id="membership-filter" style="padding: 0.5rem;">
+          <option value="all">All</option>
+          <option value="active">Active</option>
+          <option value="inactive">Inactive</option>
+        </select>
+      </div>
+      <div id="client-list"></div>
+    </div>
+    <div class="split-line"></div>
+  </main>
+
+  <script src="../js/lang.js"></script>
+  <script>
+    let allClients = [];
+
+    function renderClients(clients) {
+      const list = document.getElementById("client-list");
+      list.innerHTML = "";
+      if (!clients.length) {
+        list.innerHTML = "<p>No clients found.</p>";
+        return;
+      }
+
+      clients.forEach(client => {
+        const card = document.createElement("div");
+        card.className = "card";
+        card.style.cursor = "pointer";
+        card.innerHTML = `
+          <div style="display: flex; gap: 1rem;">
+            <div style="flex: 1; cursor: pointer;" onclick="window.location.href='client_detail.html?id=${client.id}'">
+              <div class="client-name">
+                ${client.full_name}
+                <span class="membership-status ${client.membership_active ? 'status-active' : 'status-inactive'}"></span>
+              </div>
+              <div class="client-info">
+                <p>Email: ${client.email || "—"}</p>
+                <p>Age: ${client.age || "—"}</p>
+                <p>Weight: ${client.weight || "—"} kg</p>
+                <p>Goal: ${client.goal || "—"}</p>
+                <p>Notes: ${client.notes || "—"}</p>
+              </div>
+            </div>
+
+            <div class="vl"></div>
+
+            <div style="flex: 1; cursor: pointer;" onclick="window.location.href='client_plan.html?id=${client.id}'">
+              <strong>Training Plan:</strong> <span id="training-${client.id}">Loading...</span><br>
+              <strong>Diet Plan:</strong> <span id="diet-${client.id}">Loading...</span>
+            </div>
+          </div>
+        `;
+        // Fetch and fill plan data
+        fetch(`http://localhost:8000/api/client_plans/${client.id}`)
+          .then(r => {
+            if (!r.ok) throw new Error("No plan");
+            return r.json();
+          })
+          .then(plan => {
+            if (!plan || !plan.plan_id || !plan.type || !plan.name) {
+              document.getElementById(`training-${client.id}`).textContent = "No plan assigned";
+              document.getElementById(`diet-${client.id}`).textContent = "No plan assigned";
+              return;
+            }
+            document.getElementById(`training-${client.id}`).textContent = plan.type === "workout" ? plan.name : "—";
+            document.getElementById(`diet-${client.id}`).textContent = plan.type === "meals" ? plan.name : "—";
+          })
+          .catch(() => {
+            document.getElementById(`training-${client.id}`).textContent = "No plan assigned";
+            document.getElementById(`diet-${client.id}`).textContent = "No plan assigned";
+          });
+
+        list.appendChild(card);
+      });
+    }
+
+    function filterAndRender() {
+      const searchVal = document.getElementById("search-input").value.toLowerCase();
+      const statusFilter = document.getElementById("membership-filter").value;
+
+      const filtered = allClients.filter(client => {
+        const nameMatch = client.full_name.toLowerCase().includes(searchVal);
+        const statusMatch = statusFilter === "all" ||
+          (statusFilter === "active" && client.membership_active) ||
+          (statusFilter === "inactive" && !client.membership_active);
+        return nameMatch && statusMatch;
+      });
+
+      renderClients(filtered);
+    }
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/clients/");
+        allClients = await res.json();
+        renderClients(allClients);
+
+        document.getElementById("search-input").addEventListener("input", filterAndRender);
+        document.getElementById("membership-filter").addEventListener("change", filterAndRender);
+      } catch (err) {
+        document.getElementById("client-list").innerHTML = `<p>Error loading clients: ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Add Client | Trainer App</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      background: #f4f4f4;
+      transition: direction 0.3s;
+    }
+
+    header {
+      background: #2c3e50;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .lang-toggle {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+    }
+
+    nav {
+      display: flex;
+      justify-content: space-around;
+      background: #34495e;
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+
+    nav a {
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+    }
+
+    main {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    .card {
+      background: white;
+      padding: 2rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      max-width: 600px;
+      width: 100%;
+    }
+
+    form label {
+      display: block;
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    form input[type="text"],
+    form input[type="email"],
+    form input[type="tel"],
+    form input[type="number"],
+    form input[type="date"],
+    form select {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.25rem;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      box-sizing: border-box;
+    }
+    form input[type="checkbox"] {
+      margin-top: 0.5rem;
+    }
+    button#submit-button {
+      margin-top: 1.5rem;
+      background-color: #2c3e50;
+      color: white;
+      border: none;
+      padding: 0.75rem 1.5rem;
+      border-radius: 3px;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button#submit-button:hover {
+      background-color: #34495e;
+    }
+
+    @media (max-width: 600px) {
+      nav {
+        flex-direction: column;
+        align-items: center;
+      }
+      main {
+        padding: 0.5rem;
+      }
+      .card {
+        padding: 1rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button onclick="setLanguage('en')">English</button>
+    <button onclick="setLanguage('ar')">العربية</button>
+  </div>
+
+  <header>
+    <h1 id="add-client-header">Add New Client</h1>
+    <p id="add-client-subtext">Enter client details below</p>
+  </header>
+
+  <nav>
+    <a href="trainer_home.html" id="nav-home">Home</a>
+    <a href="clients.html" id="nav-clients">Clients</a>
+    <a href="plans.html" id="nav-plans">Plans</a>
+    <a href="#" id="nav-progress">Progress</a>
+    <a href="settings.html" id="nav-settings">Settings</a>
+  </nav>
+
+  <main>
+    <div class="card">
+      <form>
+        <label for="fullName" id="label-name">Full Name</label>
+        <input type="text" id="fullName" placeholder="Client's Full Name" />
+
+        <label for="email" id="label-email">Email</label>
+        <input type="email" id="email" placeholder="client@example.com" />
+
+        <label for="phone" id="label-phone">Phone Number</label>
+        <input type="tel" id="phone" placeholder="+9665XXXXXXX" />
+
+        <div style="display: flex; gap: 1rem;">
+          <div style="flex: 1;">
+            <label for="height" id="label-height">Height (cm)</label>
+            <input type="number" id="height" placeholder="e.g. 180" />
+          </div>
+          <div style="flex: 1;">
+            <label for="weight" id="label-weight">Weight (kg)</label>
+            <input type="number" id="weight" placeholder="e.g. 85" />
+          </div>
+        </div>
+
+        <label for="age" id="label-age">Age</label>
+        <input type="number" id="age" placeholder="25" />
+
+        <label for="goal" id="label-goal">Fitness Goal</label>
+        <select id="goal">
+          <option value="fat_loss">Fat Loss</option>
+          <option value="muscle_gain">Muscle Gain</option>
+          <option value="maintenance">Maintenance</option>
+        </select>
+
+        <label for="membership_active" id="label-membership-active">Membership Active</label>
+        <input type="checkbox" id="membership_active" checked />
+
+        <label for="start_date" id="label-start-date">Start Date</label>
+        <input type="date" id="start_date" />
+
+        <label for="end_date" id="label-end-date">End Date</label>
+        <input type="date" id="end_date" />
+
+        <label for="membership_length" id="label-membership-length">Membership Duration</label>
+        <select id="membership_length">
+          <option value="">Select Duration</option>
+          <option value="1">1 Month</option>
+          <option value="3">3 Months</option>
+          <option value="6">6 Months</option>
+          <option value="12">1 Year</option>
+        </select>
+
+        <button type="submit" id="submit-button">Add Client</button>
+      </form>
+    </div>
+  </main>
+
+  <script src="../js/lang.js"></script>
+  <script src="../js/fetch_client.js"></script>
+</body>
+</html>

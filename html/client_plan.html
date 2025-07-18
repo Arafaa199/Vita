@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Client Plan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f9f9f9;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    header {
+      background-color: #2c3e50;
+      color: white;
+      padding: 15px 20px;
+      font-size: 20px;
+    }
+    h1, h2 { color: #2c3e50; }
+    .plan-card, .history-card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+      margin-top: 25px;
+    }
+    .actions { margin-top: 10px; }
+    .actions button {
+      background-color: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      margin-right: 10px;
+    }
+    .actions button:hover {
+      background-color: #2980b9;
+    }
+    #plan-history li {
+      padding: 6px 0;
+      border-bottom: 1px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <header style="background-color:#2c3e50; color:white; padding:15px 20px; font-size:20px;">
+    Vita Trainer Dashboard
+  </header>
+
+  <h1>📋 Client Plan Details</h1>
+  <p><strong>Client:</strong> <span id="client-name">Loading...</span></p>
+  <div style="margin-bottom: 15px;">
+    <button onclick="window.location.href='clients.html'" style="background-color: #95a5a6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">
+      ⬅ Back to Clients
+    </button>
+  </div>
+
+  <div style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: space-between; margin-bottom: 25px;">
+
+    <!-- Training Plan Section -->
+    <div class="plan-card" style="flex: 1; min-width: 320px;">
+      <h2>🏋️‍♂️ Training Plan</h2>
+      <p><strong>Plan Name:</strong> <span id="plan-name">Loading...</span></p>
+      <p><strong>Type:</strong> <span id="plan-type"></span></p>
+      <p><strong>Description:</strong></p>
+      <p id="plan-description" style="margin-left: 1em;"></p>
+      <p><strong>Assigned On:</strong> <span id="assigned-on"></span></p>
+      <div class="actions">
+        <button onclick="editPlan()">✏️ Edit</button>
+        <button onclick="removePlan()">🗑️ Remove</button>
+      </div>
+    </div>
+
+    <!-- Meal Plan Section -->
+    <div class="plan-card" style="flex: 1; min-width: 320px;">
+      <h2>🍽️ Meal Plan</h2>
+      <p><strong>Meal Plan Name:</strong> <span id="meal-plan-name">Coming soon</span></p>
+      <p><strong>Calories:</strong> <span id="meal-plan-calories">-</span></p>
+      <p><strong>Macronutrients:</strong></p>
+      <ul style="margin-left: 1em;">
+        <li>Protein: <span id="meal-protein">-</span></li>
+        <li>Carbs: <span id="meal-carbs">-</span></li>
+        <li>Fats: <span id="meal-fats">-</span></li>
+      </ul>
+    </div>
+
+  </div>
+
+  <!-- Plan History below the two panels -->
+  <div class="history-card">
+    <h2>Plan History</h2>
+    <ul id="plan-history">
+      <li>Loading history...</li>
+    </ul>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const clientId = urlParams.get('id');
+
+    async function loadClientPlan() {
+      try {
+        const res = await fetch(`http://localhost:8000/api/client_plans/${clientId}`);
+        if (!res.ok) throw new Error("Failed to fetch client plan");
+        const data = await res.json();
+
+        document.getElementById("plan-name").textContent = data.plan.name;
+        document.getElementById("plan-type").textContent = data.plan.type;
+        // Place description in its own indented paragraph
+        document.getElementById("plan-description").textContent = data.plan.description;
+        document.getElementById("assigned-on").textContent = new Date(data.assigned_on).toLocaleDateString();
+      } catch (err) {
+        console.error(err);
+        document.querySelector(".plan-card").innerHTML = "<p>No plan currently assigned.</p>";
+      }
+    }
+
+    async function loadPlanHistory() {
+      try {
+        const res = await fetch(`http://localhost:8000/api/client_plans/${clientId}/history`);
+        if (!res.ok) throw new Error("Failed to fetch plan history");
+        const history = await res.json();
+        const list = document.getElementById("plan-history");
+        list.innerHTML = "";
+        history.forEach(entry => {
+          const li = document.createElement("li");
+          li.textContent = `${entry.plan?.name || entry.plan_name} (${entry.plan?.type || entry.plan_type}) on ${new Date(entry.assigned_on).toLocaleDateString()}`;
+          list.appendChild(li);
+        });
+      } catch (err) {
+        console.error(err);
+        document.getElementById("plan-history").innerHTML = "<li>Error loading history.</li>";
+      }
+    }
+
+    function editPlan() {
+      window.location.href = `edit_plan.html?client_id=${clientId}`;
+    }
+
+    async function removePlan() {
+      if (!confirm("Are you sure you want to unassign this plan?")) return;
+      try {
+        const res = await fetch(`http://localhost:8000/api/client_plans/${clientId}`, {
+          method: "DELETE"
+        });
+        if (!res.ok) throw new Error("Failed to remove plan");
+        alert("Plan removed");
+        location.reload();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to remove plan");
+      }
+    }
+
+    loadClientPlan();
+    loadPlanHistory();
+    async function loadClientName() {
+      try {
+        const res = await fetch(`http://localhost:8000/api/clients/${clientId}`);
+        if (!res.ok) throw new Error("Failed to fetch client");
+        const client = await res.json();
+        document.getElementById("client-name").textContent = client.full_name;
+      } catch (err) {
+        console.error(err);
+        document.getElementById("client-name").textContent = "Unknown";
+      }
+    }
+    loadClientName();
+  </script>
+</body>
+</html>
