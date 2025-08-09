@@ -1,8 +1,7 @@
 (function(){
   const rtl = new Set(['ar']);
   const key = 'vita-lang';
-  
-const base = location.origin.startsWith("http") ? "/i18n" : "../i18n"; // because pages live under /html
+  const base = '../i18n'; // because pages live under /html
   let dict = {};
 
   async function j(p){ const r = await fetch(p); if(!r.ok) throw new Error('i18n fetch '+p); return r.json(); }
