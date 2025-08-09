@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+STATIC_DIR  = os.path.normpath(os.path.join(BASE_DIR, "..", "site"))
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
@@ -568,3 +569,4 @@ def get_diet_history(client_id: int, db: Session = Depends(get_db)):
 
 Base.metadata.create_all(bind=engine)
 app.include_router(router, prefix="/api")
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
