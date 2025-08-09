@@ -1,6 +1,6 @@
 document.addEventListener("DOMContentLoaded", async () => {
   try {
-    const res = await fetch("http://localhost:8000/api/plans/");
+    const res = await fetch(window.API_BASE + "/api/plans/");
     if (!res.ok) throw new Error("Failed to fetch plans");
 
     const plans = await res.json();

@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const res = await fetch("http://localhost:8000/api/plans/", {
+      const res = await fetch(window.API_BASE + "/api/plans/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

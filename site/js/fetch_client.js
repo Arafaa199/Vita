@@ -32,7 +32,7 @@ document.addEventListener("DOMContentLoaded", () => {
       };
 
       try {
-        const response = await fetch("http://localhost:8000/api/clients/", {
+        const response = await fetch(window.API_BASE + "/api/clients/", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -61,7 +61,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadClient = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/clients/${clientId}/`);
+      const response = await fetch(`/api/clients/${clientId}/`);
       if (!response.ok) throw new Error("Failed to load client");
       const client = await response.json();
 
@@ -110,7 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const response = await fetch(`http://localhost:8000/api/clients/${clientId}/`, {
+      const response = await fetch(`/api/clients/${clientId}/`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -132,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteClient = async () => {
     if (!confirm("Are you sure you want to delete this client?")) return;
     try {
-      const response = await fetch(`http://localhost:8000/api/clients/${clientId}/`, {
+      const response = await fetch(`/api/clients/${clientId}/`, {
         method: "DELETE",
       });
       if (response.ok) {
@@ -149,7 +149,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadPlans = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/plans/");
+      const response = await fetch(window.API_BASE + "/api/plans/");
       if (!response.ok) throw new Error("Failed to load plans");
       const plans = await response.json();
       const planSelect = document.getElementById("planSelect");
@@ -167,7 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadAssignedPlans = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/client_plans/${clientId}/history`);
+      const response = await fetch(`/api/client_plans/${clientId}/history`);
       if (!response.ok) throw new Error("Failed to load assigned plans");
       const assignedPlans = await response.json();
       const assignedPlansList = document.getElementById("assignedPlansList");
@@ -189,7 +189,7 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     try {
-      const response = await fetch(`http://localhost:8000/api/client_plans/`, {
+      const response = await fetch(`/api/client_plans/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
