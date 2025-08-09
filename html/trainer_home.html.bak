@@ -9,10 +9,10 @@
   <div class="appbar-inner">
     <div class="brand"><div class="brand-badge"></div> Vita Trainer</div>
     <nav class="nav">
-      <a id="nav-home" class="active" id="nav-home" href="trainer_home.html"><span data-i18n="nav-home"></span></a>
-      <a id="nav-clients" href="clients.html" id="nav-clients"><span data-i18n="nav-clients"></span></a>
-      <a id="nav-plans" href="plans.html" id="nav-plans"><span data-i18n="nav-plans"></span></a>
-      <a id="nav-settings" href="settings.html" id="nav-settings"><span data-i18n="nav-settings"></span></a>
+      <a class="active" id="nav-home" href="trainer_home.html">Home</a>
+      <a href="clients.html" id="nav-clients">Clients</a>
+      <a href="plans.html" id="nav-plans">Plans</a>
+      <a href="settings.html" id="nav-settings">Settings</a>
     </nav>
     <div class="toolbar">
       <div class="lang-toggle">
@@ -29,7 +29,7 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title" id="quick-actions"><span data-i18n="quick-actions"></span></div>
+          <div class="card-title" id="quick-actions">Quick Actions</div>
           <div class="card-sub">Common tasks you do every day</div>
         </div>
       </div>
@@ -43,8 +43,8 @@
     <section class="card">
       <div class="card-header">
         <div>
-          <div class="card-title" id="recent-activity"><span data-i18n="recent-activity"></span></div>
-          <div class="card-sub" id="no-activity"><span data-i18n="no-activity"></span></div>
+          <div class="card-title" id="recent-activity">Recent Activity</div>
+          <div class="card-sub" id="no-activity">No recent updates yet.</div>
         </div>
       </div>
       <table class="table">
@@ -58,10 +58,7 @@
 </main>
 
 <footer class="footer">Vita Trainer — built for speed and clarity</footer>
-<script src="../js/i18n.js"></script>
+<script src="../js/lang.js"></script>
 <script src="../js/theme.js"></script>
-<script>function setLanguage(l){ I18N.switchLang(l, ['common']); }</script>
-<script>function setLanguage(l){ I18N.switchLang(l, ['common']); }</script>
-<script>I18N.init(['common']);</script>
 </body>
 </html>

@@ -167,7 +167,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadAssignedPlans = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/client_plans/${clientId}/history`);
+      const response = await fetch(`http://localhost:8000/api/clients/${clientId}/plans/`);
       if (!response.ok) throw new Error("Failed to load assigned plans");
       const assignedPlans = await response.json();
       const assignedPlansList = document.getElementById("assignedPlansList");
