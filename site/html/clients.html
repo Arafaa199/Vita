@@ -46,19 +46,19 @@
 </main>
 
 <footer class="footer">Vita Clients</footer>
+<script src="../js/config.js"></script>
 <script src="../js/i18n.js"></script>
 <script src="../js/theme.js"></script>
 <script>
-  // Uses your existing API + rendering improved cards
-  let allClients=[];
-  function clientCard(c){
-    const active = c.membership_active;
-    return `
+(function(){var b=(typeof window.API_BASE==='string'&&window.API_BASE)||location.origin;try{var u=new URL(b,location.href);b=u.origin;}catch(e){b=location.origin}window.API_BASE=String(b).replace(/\/+$/,'')})();
+function buildApiUrl(p){return window.API_BASE.replace(/\/+$/,'')+p}
+let allClients=[];
+function clientCard(c){const a=c.membership_active;return `
     <div class="card" style="padding:16px">
       <div class="row" style="justify-content:space-between">
         <div class="row">
-          <div class="status-dot ${active?'bg-ok':'bg-danger'}"></div>
-          <strong style="font-size:1.05rem;margin-left:6px">${c.full_name || '—'}</strong>
+          <div class="status-dot ${a?'bg-ok':'bg-danger'}"></div>
+          <strong style="font-size:1.05rem;margin-left:6px">${c.full_name||'—'}</strong>
         </div>
         <div class="row">
           <a class="btn ghost" href="client_detail.html?id=${c.id}">Details</a>
@@ -66,34 +66,18 @@
         </div>
       </div>
       <div class="kv" style="margin-top:8px">
-        <label>Email</label><div class="value">${c.email || '—'}</div>
-        <label>Age</label><div class="value">${c.age ?? '—'}</div>
-        <label>Weight</label><div class="value">${c.weight ?? '—'} kg</div>
-        <label>Goal</label><div class="value">${c.goal || '—'}</div>
+        <label>Email</label><div class="value">${c.email||'—'}</div>
+        <label>Age</label><div class="value">${c.age??'—'}</div>
+        <label>Weight</label><div class="value">${c.weight??'—'} kg</div>
+        <label>Goal</label><div class="value">${c.goal||'—'}</div>
       </div>
-    </div>`;
-  }
-  function render(list){
-    const el=document.getElementById("client-list");
-    el.innerHTML = list.map(clientCard).join("");
-  }
-  function filterAndRender(){
-    const q = document.getElementById("search-input").value.toLowerCase();
-    const f = document.getElementById("membership-filter").value;
-    const filtered = allClients.filter(c=>{
-      const name = (c.full_name||'').toLowerCase().includes(q);
-      const status = f==='all' || (f==='active'&&c.membership_active) || (f==='inactive'&&!c.membership_active);
-      return name && status;
-    });
-    render(filtered);
-  }
-  document.addEventListener("DOMContentLoaded", async ()=>{
-    const res = await fetch("http://localhost:8000/api/clients/");
-    allClients = await res.json();
-    render(allClients);
-    document.getElementById("search-input").addEventListener("input", filterAndRender);
-    document.getElementById("membership-filter").addEventListener("change", filterAndRender);
-  });
+    </div>`}
+function render(list){const el=document.getElementById('client-list');el.innerHTML=list.map(clientCard).join('')}
+function filterAndRender(){const q=document.getElementById('search-input').value.toLowerCase();const f=document.getElementById('membership-filter').value;const filtered=allClients.filter(c=>{const name=(c.full_name||'').toLowerCase().includes(q);const status=f==='all'||(f==='active'&&c.membership_active)||(f==='inactive'&&!c.membership_active);return name&&status});render(filtered)}
+document.addEventListener('DOMContentLoaded',async()=>{try{const res=await fetch(buildApiUrl('/api/clients/'));if(!res.ok)throw new Error('Load failed');allClients=await res.json();render(allClients)}catch(e){console.error(e);alert('❌ Failed to load clients')}
+  document.getElementById('search-input').addEventListener('input',filterAndRender);
+  document.getElementById('membership-filter').addEventListener('change',filterAndRender);
+});
 </script>
 <script>function setLanguage(l){ I18N.switchLang(l, ['common','clients']); }</script>
 <script>I18N.init(['common','clients']);</script>
