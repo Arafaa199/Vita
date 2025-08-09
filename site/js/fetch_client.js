@@ -1,3 +1,22 @@
+// --- API base fallback & normalization ---
+(function () {
+  var base = (typeof window.API_BASE === 'string' && window.API_BASE) || location.origin;
+  try {
+    var u = new URL(base, location.href);
+    // Force to pure origin (strip any path like /html)
+    base = u.origin;
+  } catch (e) {
+    base = location.origin;
+  }
+  // strip trailing slashes just in case
+  window.API_BASE = String(base).replace(/\/+$/, '');
+})();
+// ----------------------------------------
+// Build absolute API URLs from current origin (unique name to avoid globals)
+function buildApiUrl(path) {
+  return location.origin.replace(/\/+$/, '') + path;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("form");
   if (form) {
@@ -25,14 +44,15 @@ document.addEventListener("DOMContentLoaded", () => {
         age: parseInt(document.getElementById("age").value),
         weight: parseFloat(document.getElementById("weight").value),
         goal: document.getElementById("goal").value,
-        membership_active: document.getElementById("membership_active").checked,
+        membership_active: document.getElementById("membership_active").value === "true",
         start_date: document.getElementById("start_date").value,
         end_date: document.getElementById("end_date").value,
         membership_length: document.getElementById("membership_length").value,
       };
 
       try {
-        const response = await fetch(window.API_BASE + "/api/clients/", {
+        console.log("POST URL:", buildApiUrl("/api/clients/"));
+        const response = await fetch(buildApiUrl("/api/clients/"), {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -61,7 +81,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadClient = async () => {
     try {
-      const response = await fetch(`/api/clients/${clientId}/`);
+      const response = await fetch(buildApiUrl(`/api/clients/${clientId}/`));
       if (!response.ok) throw new Error("Failed to load client");
       const client = await response.json();
 
@@ -110,7 +130,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const response = await fetch(`/api/clients/${clientId}/`, {
+      const response = await fetch(buildApiUrl(`/api/clients/${clientId}/`), {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -132,12 +152,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const deleteClient = async () => {
     if (!confirm("Are you sure you want to delete this client?")) return;
     try {
-      const response = await fetch(`/api/clients/${clientId}/`, {
+      const response = await fetch(buildApiUrl(`/api/clients/${clientId}/`), {
         method: "DELETE",
       });
       if (response.ok) {
         alert("✅ Client deleted successfully");
-        window.location.href = "/clients.html";
+        window.location.href = "/html/clients.html";
       } else {
         const error = await response.json();
         alert("❌ Error: " + (error.detail || response.statusText));
@@ -149,7 +169,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadPlans = async () => {
     try {
-      const response = await fetch(window.API_BASE + "/api/plans/");
+      const response = await fetch(buildApiUrl("/api/plans/"));
       if (!response.ok) throw new Error("Failed to load plans");
       const plans = await response.json();
       const planSelect = document.getElementById("planSelect");
@@ -167,7 +187,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const loadAssignedPlans = async () => {
     try {
-      const response = await fetch(`/api/client_plans/${clientId}/history`);
+      const response = await fetch(buildApiUrl(`/api/client_plans/${clientId}/history`));
       if (!response.ok) throw new Error("Failed to load assigned plans");
       const assignedPlans = await response.json();
       const assignedPlansList = document.getElementById("assignedPlansList");
@@ -189,12 +209,12 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
     try {
-      const response = await fetch(`/api/client_plans/`, {
+      const response = await fetch(buildApiUrl(`/api/client_plans/`), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ plan_id: planId }),
+        body: JSON.stringify({ client_id: Number(clientId), plan_id: Number(planId) }),
       });
       if (response.ok) {
         alert("✅ Plan assigned successfully");
