@@ -1,24 +1,20 @@
-from fastapi import FastAPI, HTTPException, Depends, APIRouter, UploadFile, File, Form, Depends
+from fastapi import FastAPI, HTTPException, Depends, APIRouter, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, TIMESTAMP, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, date
-from db import SessionLocal, Base, engine
+from .db import SessionLocal, Base, engine
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
-from db import Base
 from fastapi.responses import JSONResponse
 import shutil
 import os
-from db import SessionLocal, engine
 from fastapi.staticfiles import StaticFiles
 
 
 app = FastAPI()
-Base.metadata.create_all(bind=engine)
 
 def get_db():
     db = SessionLocal()
@@ -30,22 +26,22 @@ def get_db():
 app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
+router = APIRouter()
 
-@app.get("/api/clients/{client_id}/photos")
+@router.get("/clients/{client_id}/photos")
 def get_client_photos(client_id: int, db: Session = Depends(get_db)):
     photos = db.query(ClientPhoto).filter(ClientPhoto.client_id == client_id).all()
     return [
         {
             "label": photo.label,
-            "image_url": f"/api/{photo.image_url}",
+            "image_url": photo.image_url,
             "uploaded_at": photo.uploaded_at.isoformat() if photo.uploaded_at else None
         }
         for photo in photos
     ]
 
 
-
-@app.post("/upload_photo/")
+@router.post("/upload_photo/")
 async def upload_photo(
     client_id: int = Form(...),
     label: str = Form(...),  # 'before', 'after', 'progress', 'other'
@@ -61,21 +57,24 @@ async def upload_photo(
         return JSONResponse(status_code=400, content={"error": "Invalid label"})
 
     # Create upload folder if it doesn't exist
-    folder = f"uploads/clients/{client_id}"
+    relative_dir = os.path.join("clients", str(client_id))
+    folder = os.path.join("uploads", relative_dir)
     os.makedirs(folder, exist_ok=True)
 
     # Timestamped filename
     timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
     filename = f"{label}_{timestamp}.jpg"
-    filepath = os.path.join(folder, filename)
+    file_path = os.path.join(folder, filename)  # filesystem path
 
     # Save file to disk
-    with open(filepath, "wb") as buffer:
+    with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    # Public URL served by StaticFiles mounted at /api/uploads
+    public_url = f"/api/uploads/{relative_dir}/{filename}"
+
     # Save metadata to DB
-    image_url = f"/{filepath}"
-    photo = ClientPhoto(client_id=client_id, label=label, image_url=image_url)
+    photo = ClientPhoto(client_id=client_id, label=label, image_url=public_url)
     db.add(photo)
     db.commit()
     db.refresh(photo)
@@ -83,17 +82,9 @@ async def upload_photo(
     return {
         "status": "success",
         "photo_id": photo.id,
-        "image_url": photo.image_url,
+        "image_url": public_url,
         "uploaded_at": photo.uploaded_at
     }
-
-
-
-
-
-
-
-
 
 
 
@@ -156,51 +147,31 @@ class ClientRead(ClientCreate):
         orm_mode = True
 
 
-router = APIRouter()
-
-# --- CORS ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
 #api routes
-@app.post("/api/clients/", response_model=ClientRead)
-def create_client(client: ClientCreate):
-    db = SessionLocal()
+@router.post("/clients/", response_model=ClientRead)
+def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     db_client = Client(**client.dict())
     db.add(db_client)
     db.commit()
     db.refresh(db_client)
-    db.close()
     return db_client
 
-@app.get("/api/clients/", response_model=List[ClientRead])
-def read_clients():
-    db = SessionLocal()
+@router.get("/clients/", response_model=List[ClientRead])
+def read_clients(db: Session = Depends(get_db)):
     clients = db.query(Client).all()
-    db.close()
     return clients
 
-@app.get("/api/clients/{client_id}", response_model=ClientRead)
-def get_client_by_id(client_id: int):
-    db = SessionLocal()
+@router.get("/clients/{client_id}", response_model=ClientRead)
+def get_client_by_id(client_id: int, db: Session = Depends(get_db)):
     client = db.query(Client).filter(Client.id == client_id).first()
-    db.close()
     if not client:
         raise HTTPException(status_code=404, detail="Client not found")
     return client
 
-@app.put("/api/clients/{client_id}", response_model=ClientRead)
-def update_client(client_id: int, updated_client: ClientCreate):
-    db = SessionLocal()
+@router.put("/clients/{client_id}", response_model=ClientRead)
+def update_client(client_id: int, updated_client: ClientCreate, db: Session = Depends(get_db)):
     db_client = db.query(Client).filter(Client.id == client_id).first()
     if not db_client:
-        db.close()
         raise HTTPException(status_code=404, detail="Client not found")
 
     for key, value in updated_client.dict().items():
@@ -208,19 +179,16 @@ def update_client(client_id: int, updated_client: ClientCreate):
 
     db.commit()
     db.refresh(db_client)
-    db.close()
     return db_client
-@app.delete("/api/clients/{client_id}")
-def delete_client(client_id: int):
-    db = SessionLocal()
+
+@router.delete("/clients/{client_id}")
+def delete_client(client_id: int, db: Session = Depends(get_db)):
     client = db.query(Client).filter(Client.id == client_id).first()
     if not client:
-        db.close()
         raise HTTPException(status_code=404, detail="Client not found")
 
     db.delete(client)
     db.commit()
-    db.close()
     return {"detail": "Client deleted successfully"}
 
 #sqlalchamy model
@@ -232,13 +200,12 @@ class Plan(Base):
     type = Column(String(20))
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
 
-Base.metadata.create_all(bind=engine)
-
 # models
 class PlanIn(BaseModel):
     name: str
     description: Optional[str] = None
     type: Optional[str] = None
+
 
 class PlanOut(PlanIn):
     id: int
@@ -246,6 +213,50 @@ class PlanOut(PlanIn):
 
     class Config:
         orm_mode = True
+
+
+# --- Training & Diet Plan Models ---
+class TrainingPlan(Base):
+    __tablename__ = "training_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    # JSON as Text for SQLite compatibility (store serialized JSON: exercises, schedule, etc.)
+    structure = Column(Text)  # e.g., {"days":[{"day":"Push","exercises":[...]}]}
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class DietPlan(Base):
+    __tablename__ = "diet_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    # JSON as Text for SQLite compatibility (meals, macros, timing)
+    structure = Column(Text)  # e.g., {"meals":[{"time":"08:00","items":[...]}]}
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# --- Pydantic Schemas ---
+class TrainingPlanIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    structure: Optional[str] = None  # JSON string
+
+class TrainingPlanOut(TrainingPlanIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+class DietPlanIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    structure: Optional[str] = None  # JSON string
+
+class DietPlanOut(DietPlanIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
 
 
 
@@ -289,9 +300,137 @@ def delete_plan(plan_id: int, db: Session = Depends(get_db)):
     return {"message": "Plan deleted successfully"}
 
 
+# --- Training Plans CRUD ---
+@router.post("/training_plans/", response_model=TrainingPlanOut)
+def create_training_plan(plan: TrainingPlanIn, db: Session = Depends(get_db)):
+    tp = TrainingPlan(**plan.dict())
+    db.add(tp)
+    db.commit()
+    db.refresh(tp)
+    return tp
+
+@router.get("/training_plans/", response_model=List[TrainingPlanOut])
+def list_training_plans(db: Session = Depends(get_db)):
+    return db.query(TrainingPlan).order_by(TrainingPlan.created_at.desc()).all()
+
+@router.get("/training_plans/{plan_id}", response_model=TrainingPlanOut)
+def get_training_plan(plan_id: int, db: Session = Depends(get_db)):
+    tp = db.query(TrainingPlan).filter(TrainingPlan.id == plan_id).first()
+    if not tp:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    return tp
+
+@router.put("/training_plans/{plan_id}", response_model=TrainingPlanOut)
+def update_training_plan(plan_id: int, plan: TrainingPlanIn, db: Session = Depends(get_db)):
+    tp = db.query(TrainingPlan).filter(TrainingPlan.id == plan_id).first()
+    if not tp:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    for k, v in plan.dict().items():
+        setattr(tp, k, v)
+    db.commit()
+    db.refresh(tp)
+    return tp
+
+@router.delete("/training_plans/{plan_id}")
+def delete_training_plan(plan_id: int, db: Session = Depends(get_db)):
+    tp = db.query(TrainingPlan).filter(TrainingPlan.id == plan_id).first()
+    if not tp:
+        raise HTTPException(status_code=404, detail="Training plan not found")
+    db.delete(tp)
+    db.commit()
+    return {"message": "Training plan deleted successfully"}
+
+
+# --- Diet Plans CRUD ---
+@router.post("/diet_plans/", response_model=DietPlanOut)
+def create_diet_plan(plan: DietPlanIn, db: Session = Depends(get_db)):
+    dp = DietPlan(**plan.dict())
+    db.add(dp)
+    db.commit()
+    db.refresh(dp)
+    return dp
+
+@router.get("/diet_plans/", response_model=List[DietPlanOut])
+def list_diet_plans(db: Session = Depends(get_db)):
+    return db.query(DietPlan).order_by(DietPlan.created_at.desc()).all()
+
+@router.get("/diet_plans/{plan_id}", response_model=DietPlanOut)
+def get_diet_plan(plan_id: int, db: Session = Depends(get_db)):
+    dp = db.query(DietPlan).filter(DietPlan.id == plan_id).first()
+    if not dp:
+        raise HTTPException(status_code=404, detail="Diet plan not found")
+    return dp
+
+@router.put("/diet_plans/{plan_id}", response_model=DietPlanOut)
+def update_diet_plan(plan_id: int, plan: DietPlanIn, db: Session = Depends(get_db)):
+    dp = db.query(DietPlan).filter(DietPlan.id == plan_id).first()
+    if not dp:
+        raise HTTPException(status_code=404, detail="Diet plan not found")
+    for k, v in plan.dict().items():
+        setattr(dp, k, v)
+    db.commit()
+    db.refresh(dp)
+    return dp
+
+@router.delete("/diet_plans/{plan_id}")
+def delete_diet_plan(plan_id: int, db: Session = Depends(get_db)):
+    dp = db.query(DietPlan).filter(DietPlan.id == plan_id).first()
+    if not dp:
+        raise HTTPException(status_code=404, detail="Diet plan not found")
+    db.delete(dp)
+    db.commit()
+    return {"message": "Diet plan deleted successfully"}
+
+
 
 # --- Client Plan Models & Endpoints ---
+
 from typing import List as TypingList, Optional as TypingOptional
+
+# --- Client Training & Diet Assignments ---
+class ClientTrainingPlan(Base):
+    __tablename__ = "client_training_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"))
+    training_plan_id = Column(Integer, ForeignKey("training_plans.id", ondelete="CASCADE"))
+    assigned_on = Column(TIMESTAMP, default=datetime.utcnow)
+    notes = Column(Text)
+
+class ClientDietPlan(Base):
+    __tablename__ = "client_diet_plans"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"))
+    diet_plan_id = Column(Integer, ForeignKey("diet_plans.id", ondelete="CASCADE"))
+    assigned_on = Column(TIMESTAMP, default=datetime.utcnow)
+    notes = Column(Text)
+
+class ClientTrainingPlanIn(BaseModel):
+    client_id: int
+    training_plan_id: int
+    notes: Optional[str] = None
+
+class ClientDietPlanIn(BaseModel):
+    client_id: int
+    diet_plan_id: int
+    notes: Optional[str] = None
+
+class ClientTrainingPlanOut(BaseModel):
+    id: int
+    client_id: int
+    training_plan_id: int
+    assigned_on: datetime
+    notes: Optional[str]
+    class Config:
+        orm_mode = True
+
+class ClientDietPlanOut(BaseModel):
+    id: int
+    client_id: int
+    diet_plan_id: int
+    assigned_on: datetime
+    notes: Optional[str]
+    class Config:
+        orm_mode = True
 
 class ClientPlan(Base):
     __tablename__ = "client_plans"
@@ -316,7 +455,6 @@ class ClientPlanOut(BaseModel):
     class Config:
         orm_mode = True
 
-Base.metadata.create_all(bind=engine)
 
 @router.get("/client_plans/{client_id}")
 def get_current_client_plan(client_id: int, db: Session = Depends(get_db)):
@@ -388,4 +526,39 @@ def get_client_plan_history(client_id: int, db: Session = Depends(get_db)):
 
     ]
 
+# --- Client Training Plan assign & history ---
+@router.post("/client_training_plans/", response_model=ClientTrainingPlanOut)
+def assign_training_plan(data: ClientTrainingPlanIn, db: Session = Depends(get_db)):
+    obj = ClientTrainingPlan(**data.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/client_training_plans/{client_id}/history", response_model=List[ClientTrainingPlanOut])
+def get_training_history(client_id: int, db: Session = Depends(get_db)):
+    rows = db.query(ClientTrainingPlan)\
+             .filter(ClientTrainingPlan.client_id == client_id)\
+             .order_by(ClientTrainingPlan.assigned_on.desc())\
+             .all()
+    return rows
+
+# --- Client Diet Plan assign & history ---
+@router.post("/client_diet_plans/", response_model=ClientDietPlanOut)
+def assign_diet_plan(data: ClientDietPlanIn, db: Session = Depends(get_db)):
+    obj = ClientDietPlan(**data.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/client_diet_plans/{client_id}/history", response_model=List[ClientDietPlanOut])
+def get_diet_history(client_id: int, db: Session = Depends(get_db)):
+    rows = db.query(ClientDietPlan)\
+             .filter(ClientDietPlan.client_id == client_id)\
+             .order_by(ClientDietPlan.assigned_on.desc())\
+             .all()
+    return rows
+
+Base.metadata.create_all(bind=engine)
 app.include_router(router, prefix="/api")
