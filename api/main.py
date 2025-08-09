@@ -11,7 +11,13 @@ from sqlalchemy.orm import relationship
 from fastapi.responses import JSONResponse
 import shutil
 import os
+
 from fastapi.staticfiles import StaticFiles
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+UPLOADS_DIR = os.path.join(BASE_DIR, "uploads")
+os.makedirs(UPLOADS_DIR, exist_ok=True)
+
 
 
 app = FastAPI()
@@ -23,7 +29,7 @@ def get_db():
     finally:
         db.close()
 
-app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
+app.mount("/api/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
 router = APIRouter()
@@ -58,7 +64,7 @@ async def upload_photo(
 
     # Create upload folder if it doesn't exist
     relative_dir = os.path.join("clients", str(client_id))
-    folder = os.path.join("uploads", relative_dir)
+    folder = os.path.join(UPLOADS_DIR, relative_dir)
     os.makedirs(folder, exist_ok=True)
 
     # Timestamped filename
