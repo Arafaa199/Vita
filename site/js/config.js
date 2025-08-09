@@ -1,2 +1,3 @@
-/* Set this after you deploy the backend on Render */
-window.API_BASE = "http://localhost:8000"\;
+window.API_BASE = (location.origin.includes('onrender.com') || location.origin.includes('pages.dev'))
+  ? location.origin
+  : "http://localhost:8000"\;
