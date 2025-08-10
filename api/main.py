@@ -283,8 +283,144 @@ class DietPlanIn(BaseModel):
     description: Optional[str] = None
     structure: Optional[str] = None  # JSON string
 
+
 class DietPlanOut(DietPlanIn):
     id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+
+# --- Memberships ---
+class Membership(Base):
+    __tablename__ = "memberships"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    package_name = Column(String(100))
+    price = Column(Float)
+    status = Column(String(20), default="active")  # active|expired|cancelled
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    renewal_due_on = Column(Date, nullable=True)
+    notes = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# --- Progress Metrics ---
+class ProgressMetric(Base):
+    __tablename__ = "progress_metrics"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, default=date.today)
+    weight = Column(Float)
+    body_fat_pct = Column(Float)
+    chest = Column(Float)
+    waist = Column(Float)
+    hips = Column(Float)
+    thigh = Column(Float)
+    arm = Column(Float)
+    notes = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# --- Workout Log ---
+class WorkoutLog(Base):
+    __tablename__ = "workout_log"
+    id = Column(Integer, primary_key=True, index=True)
+    client_id = Column(Integer, ForeignKey("clients.id", ondelete="CASCADE"), nullable=False)
+    date = Column(Date, default=date.today)
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="SET NULL"), nullable=True)
+    sets = Column(Integer)
+    reps = Column(Integer)
+    weight = Column(Float)
+    rpe = Column(Float)
+    notes = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# --- Meal Plan Items ---
+class MealPlanItem(Base):
+    __tablename__ = "meal_plan_items"
+    id = Column(Integer, primary_key=True, index=True)
+    diet_plan_id = Column(Integer, ForeignKey("diet_plans.id", ondelete="CASCADE"), nullable=False)
+    meal_name = Column(String(100))
+    food = Column(Text)
+    qty = Column(Float)
+    unit = Column(String(32))
+    calories = Column(Float)
+    protein = Column(Float)
+    carbs = Column(Float)
+    fats = Column(Float)
+    notes = Column(Text)
+    position = Column(Integer, default=0)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+# --- Schemas: Memberships ---
+class MembershipIn(BaseModel):
+    client_id: int
+    package_name: Optional[str] = None
+    price: Optional[float] = None
+    status: Optional[str] = "active"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    renewal_due_on: Optional[date] = None
+    notes: Optional[str] = None
+
+class MembershipOut(MembershipIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- Schemas: Progress Metrics ---
+class ProgressMetricIn(BaseModel):
+    client_id: int
+    date: Optional[date] = None
+    weight: Optional[float] = None
+    body_fat_pct: Optional[float] = None
+    chest: Optional[float] = None
+    waist: Optional[float] = None
+    hips: Optional[float] = None
+    thigh: Optional[float] = None
+    arm: Optional[float] = None
+    notes: Optional[str] = None
+
+class ProgressMetricOut(ProgressMetricIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- Schemas: Workout Log ---
+class WorkoutLogIn(BaseModel):
+    client_id: int
+    date: Optional[date] = None
+    exercise_id: Optional[int] = None
+    sets: Optional[int] = None
+    reps: Optional[int] = None
+    weight: Optional[float] = None
+    rpe: Optional[float] = None
+    notes: Optional[str] = None
+
+class WorkoutLogOut(WorkoutLogIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+# --- Schemas: Meal Plan Items ---
+class MealPlanItemIn(BaseModel):
+    meal_name: Optional[str] = None
+    food: Optional[str] = None
+    qty: Optional[float] = None
+    unit: Optional[str] = None
+    calories: Optional[float] = None
+    protein: Optional[float] = None
+    carbs: Optional[float] = None
+    fats: Optional[float] = None
+    notes: Optional[str] = None
+    position: Optional[int] = 0
+
+class MealPlanItemOut(MealPlanItemIn):
+    id: int
+    diet_plan_id: int
     created_at: datetime
     class Config:
         orm_mode = True
@@ -799,6 +935,124 @@ def set_plan_schedule(plan_id: int, payload: PlanScheduleIn, db: Session = Depen
     out = []
     for i, it in enumerate(payload.items):
         rec = PlanWorkout(plan_id=plan_id, workout_id=it.workout_id, day_of_week=it.day_of_week, position=(it.position or 0))
+        db.add(rec)
+        out.append(rec)
+    db.commit()
+    for rec in out:
+        db.refresh(rec)
+    return out
+
+
+# --- Membership routes ---
+@router.post("/memberships/", response_model=MembershipOut)
+def create_membership(payload: MembershipIn, db: Session = Depends(get_db)):
+    obj = Membership(**payload.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/memberships/{client_id}", response_model=List[MembershipOut])
+def list_memberships(client_id: int, db: Session = Depends(get_db)):
+    return db.query(Membership).filter(Membership.client_id == client_id).order_by(Membership.created_at.desc()).all()
+
+@router.put("/memberships/{membership_id}", response_model=MembershipOut)
+def update_membership(membership_id: int, payload: MembershipIn, db: Session = Depends(get_db)):
+    obj = db.query(Membership).filter(Membership.id == membership_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    for k, v in payload.dict().items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.delete("/memberships/{membership_id}")
+def delete_membership(membership_id: int, db: Session = Depends(get_db)):
+    obj = db.query(Membership).filter(Membership.id == membership_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    db.delete(obj)
+    db.commit()
+    return {"message": "Membership deleted"}
+
+# --- Progress metrics ---
+@router.post("/progress_metrics/", response_model=ProgressMetricOut)
+def create_metric(payload: ProgressMetricIn, db: Session = Depends(get_db)):
+    obj = ProgressMetric(**payload.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/progress_metrics/{client_id}", response_model=List[ProgressMetricOut])
+def list_metrics(client_id: int, start: Optional[date] = None, end: Optional[date] = None, db: Session = Depends(get_db)):
+    q = db.query(ProgressMetric).filter(ProgressMetric.client_id == client_id)
+    if start:
+        q = q.filter(ProgressMetric.date >= start)
+    if end:
+        q = q.filter(ProgressMetric.date <= end)
+    return q.order_by(ProgressMetric.date.desc()).all()
+
+@router.delete("/progress_metrics/{metric_id}")
+def delete_metric(metric_id: int, db: Session = Depends(get_db)):
+    obj = db.query(ProgressMetric).filter(ProgressMetric.id == metric_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Metric not found")
+    db.delete(obj)
+    db.commit()
+    return {"message": "Metric deleted"}
+
+# --- Workout log ---
+@router.post("/workout_log/", response_model=WorkoutLogOut)
+def create_log(payload: WorkoutLogIn, db: Session = Depends(get_db)):
+    obj = WorkoutLog(**payload.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/workout_log/{client_id}", response_model=List[WorkoutLogOut])
+def list_logs(client_id: int, start: Optional[date] = None, end: Optional[date] = None, db: Session = Depends(get_db)):
+    q = db.query(WorkoutLog).filter(WorkoutLog.client_id == client_id)
+    if start:
+        q = q.filter(WorkoutLog.date >= start)
+    if end:
+        q = q.filter(WorkoutLog.date <= end)
+    return q.order_by(WorkoutLog.date.desc()).all()
+
+@router.delete("/workout_log/{log_id}")
+def delete_log(log_id: int, db: Session = Depends(get_db)):
+    obj = db.query(WorkoutLog).filter(WorkoutLog.id == log_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Log not found")
+    db.delete(obj)
+    db.commit()
+    return {"message": "Log deleted"}
+
+# --- Diet plan items ---
+@router.get("/diet_plans/{plan_id}/items", response_model=List[MealPlanItemOut])
+def get_meal_items(plan_id: int, db: Session = Depends(get_db)):
+    return db.query(MealPlanItem).filter(MealPlanItem.diet_plan_id == plan_id).order_by(MealPlanItem.position.asc(), MealPlanItem.id.asc()).all()
+
+@router.put("/diet_plans/{plan_id}/items", response_model=List[MealPlanItemOut])
+def set_meal_items(plan_id: int, items: List[MealPlanItemIn], db: Session = Depends(get_db)):
+    db.query(MealPlanItem).filter(MealPlanItem.diet_plan_id == plan_id).delete()
+    out = []
+    for i, it in enumerate(items):
+        rec = MealPlanItem(
+            diet_plan_id=plan_id,
+            meal_name=it.meal_name,
+            food=it.food,
+            qty=it.qty,
+            unit=it.unit,
+            calories=it.calories,
+            protein=it.protein,
+            carbs=it.carbs,
+            fats=it.fats,
+            notes=it.notes,
+            position=it.position or i,
+        )
         db.add(rec)
         out.append(rec)
     db.commit()
