@@ -9,10 +9,10 @@
   <div class="appbar-inner">
     <div class="brand"><div class="brand-badge"></div> Vita Trainer</div>
     <nav class="nav">
-      <a id="nav-home" href="trainer_home.html" id="nav-home"><span data-i18n="nav-home"></span></a>
-      <a id="nav-clients" href="clients.html" id="nav-clients"><span data-i18n="nav-clients"></span></a>
-      <a id="nav-plans" class="active" href="plans.html" id="nav-plans"><span data-i18n="nav-plans"></span></a>
-      <a id="nav-settings" href="settings.html" id="nav-settings"><span data-i18n="nav-settings"></span></a>
+      <a id="nav-home" href="trainer_home.html"><span data-i18n="nav-home"></span></a>
+      <a id="nav-clients" href="clients.html"><span data-i18n="nav-clients"></span></a>
+      <a id="nav-plans" class="active" href="plans.html"><span data-i18n="nav-plans"></span></a>
+      <a id="nav-settings" href="settings.html"><span data-i18n="nav-settings"></span></a>
     </nav>
     <div class="toolbar">
       <div class="lang-toggle">
@@ -25,25 +25,123 @@
 </header>
 
 <main class="container">
+  <section class="card" id="plans-toolbar">
+    <div class="row between center">
+      <div class="row gap-8 center">
+        <input id="plan-search" class="input" type="search" placeholder="Search plans" data-i18n-placeholder="search-plans" style="min-width:260px">
+        <div class="btn-group" role="group" aria-label="Filter">
+          <button class="btn small" data-filter="all" id="filter-all">All</button>
+          <button class="btn small" data-filter="training" id="filter-training">Training</button>
+          <button class="btn small" data-filter="diet" id="filter-diet">Diet</button>
+        </div>
+      </div>
+      <div class="row gap-12 muted" id="plan-counters">
+        <span><strong id="count-total">0</strong> total</span>
+        <span><strong id="count-training">0</strong> training</span>
+        <span><strong id="count-diet">0</strong> diet</span>
+        <span><strong id="count-visible">0</strong> visible</span>
+      </div>
+    </div>
+  </section>
   <section class="card">
     <div class="card-header">
       <div>
-        <div class="card-title" id="plans-title"><span data-i18n="plans-title"></span></div>
-        <div class="card-sub" id="plans-description"><span data-i18n="plans-description"></span></div>
+        <div class="card-title" id="plans-training-title"><span data-i18n="plans-training-title"></span></div>
+        <div class="card-sub" id="plans-training-description"><span data-i18n="plans-training-description"></span></div>
       </div>
       <div class="row">
-        <a class="btn secondary" href="add_plan.html" id="add-plan"><span data-i18n="add-plan"></span></a>
+        <a class="btn secondary" href="add_plan.html?type=training" id="add-training-plan"><span data-i18n="add-training-plan"></span></a>
       </div>
     </div>
-    <!-- Plans list rendered by fetch_plan.js -->
-    <ul class="grid cols-2" id="plan-list"></ul>
+    <ul class="grid cols-2" id="training-plan-list" data-type="training"></ul>
+  </section>
+
+  <section class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title" id="plans-diet-title"><span data-i18n="plans-diet-title"></span></div>
+        <div class="card-sub" id="plans-diet-description"><span data-i18n="plans-diet-description"></span></div>
+      </div>
+      <div class="row">
+        <a class="btn secondary" href="add_plan.html?type=diet" id="add-diet-plan"><span data-i18n="add-diet-plan"></span></a>
+      </div>
+    </div>
+    <ul class="grid cols-2" id="diet-plan-list" data-type="diet"></ul>
   </section>
 </main>
 
-<footer class="footer">Vita Plans</footer>
+<footer class="footer"><span data-i18n="footer-plans">Vita Plans</span></footer>
+<script src="../js/config.js"></script>
 <script src="../js/i18n.js"></script>
 <script src="../js/theme.js"></script>
 <script src="../js/fetch_plan.js"></script>
 <script>function setLanguage(l){ I18N.switchLang(l, ['common','plans']); }</script>
 <script>I18N.init(['common','plans']);</script>
+</script>
+<script>
+(function(){
+  var trainingList = document.getElementById('training-plan-list');
+  var dietList = document.getElementById('diet-plan-list');
+  var search = document.getElementById('plan-search');
+  var filterButtons = document.querySelectorAll('#plans-toolbar [data-filter]');
+  var counts = { total:0, training:0, diet:0, visible:0 };
+  var activeFilter = 'all';
+
+  function normalize(){
+    // Tag each item with data-type and data-name
+    [['training', trainingList], ['diet', dietList]].forEach(function(pair){
+      var type = pair[0], ul = pair[1];
+      if(!ul) return;
+      Array.prototype.forEach.call(ul.children, function(li){
+        li.dataset.type = type;
+        if(!li.dataset.name){ li.dataset.name = (li.innerText || '').toLowerCase(); }
+      });
+    });
+  }
+
+  function updateCounts(){
+    var allItems = document.querySelectorAll('#training-plan-list > li, #diet-plan-list > li');
+    counts.total = allItems.length;
+    counts.training = trainingList ? trainingList.children.length : 0;
+    counts.diet = dietList ? dietList.children.length : 0;
+    counts.visible = 0;
+    allItems.forEach(function(li){ if(li.style.display !== 'none') counts.visible++; });
+    document.getElementById('count-total').textContent = counts.total;
+    document.getElementById('count-training').textContent = counts.training;
+    document.getElementById('count-diet').textContent = counts.diet;
+    document.getElementById('count-visible').textContent = counts.visible;
+  }
+
+  function applyFilter(){
+    var q = (search.value || '').trim().toLowerCase();
+    var allItems = document.querySelectorAll('#training-plan-list > li, #diet-plan-list > li');
+    allItems.forEach(function(li){
+      var matchesType = (activeFilter === 'all') || (li.dataset.type === activeFilter);
+      var matchesText = !q || (li.dataset.name || '').indexOf(q) !== -1;
+      li.style.display = (matchesType && matchesText) ? '' : 'none';
+    });
+    updateCounts();
+  }
+
+  function activate(btn){
+    filterButtons.forEach(function(b){ b.classList.remove('active'); });
+    btn.classList.add('active');
+    activeFilter = btn.getAttribute('data-filter');
+    applyFilter();
+  }
+
+  var mo = new MutationObserver(function(){ normalize(); applyFilter(); });
+  if(trainingList) mo.observe(trainingList, { childList:true });
+  if(dietList) mo.observe(dietList, { childList:true });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    normalize();
+    updateCounts();
+    applyFilter();
+  });
+
+  if(search){ search.addEventListener('input', applyFilter); }
+  filterButtons.forEach(function(btn){ btn.addEventListener('click', function(){ activate(btn); }); });
+})();
+</script>
 </body></html>

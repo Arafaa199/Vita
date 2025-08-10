@@ -30,6 +30,7 @@
       <div class="row" style="justify-content:space-between;align-items:center;gap:12px">
         <a class="btn" id="btn-back" href="plans.html" data-i18n="common.back">⬅ Back</a>
         <div class="row" style="gap:12px;justify-content:flex-end">
+          <a class="btn secondary" id="btn-assign" href="#" data-i18n="plan-detail.assign">Assign to Client</a>
           <button type="button" class="btn" id="saveButton" data-i18n="common.save">Save</button>
           <button type="button" class="btn danger" id="deleteButton" data-i18n="common.delete">Delete</button>
         </div>
@@ -49,12 +50,46 @@
         <label class="field">
           <span data-i18n="plan-detail.type">Type</span>
           <select id="plan_type">
-            <option value="workout" data-i18n="plan-detail.type-workout">Workout</option>
-            <option value="meal" data-i18n="plan-detail.type-meal">Meal</option>
+            <option value="training" data-i18n="plan-detail.type-training">Training</option>
+            <option value="diet" data-i18n="plan-detail.type-diet">Diet</option>
           </select>
         </label>
+        <div class="row" id="type-toggle" style="gap:8px;flex-wrap:wrap">
+          <button type="button" class="btn secondary" id="toggle-training">Training</button>
+          <button type="button" class="btn secondary" id="toggle-diet">Diet</button>
+        </div>
       </div>
     </div>
+
+    <section class="card" id="training-section" style="display:none">
+      <div class="card-header">
+        <div>
+          <div class="card-title" data-i18n="plan-detail.training.title">Training Plan</div>
+          <div class="card-sub" data-i18n="plan-detail.training.sub">Add exercises with sets, reps and rest</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="add-training-row" data-i18n="plan-detail.training.add">＋ Add Exercise</button>
+          <button class="btn" id="save-training" data-i18n="plan-detail.training.save">Save Training</button>
+        </div>
+      </div>
+      <div class="row muted" id="training-stats" style="padding:8px 0 0 0">0 exercises</div>
+      <div class="list" id="training-list"></div>
+    </section>
+
+    <section class="card" id="diet-section" style="display:none">
+      <div class="card-header">
+        <div>
+          <div class="card-title" data-i18n="plan-detail.diet.title">Diet Plan</div>
+          <div class="card-sub" data-i18n="plan-detail.diet.sub">Add meals and quantities</div>
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn" id="add-diet-row" data-i18n="plan-detail.diet.add">＋ Add Meal Item</button>
+          <button class="btn" id="save-diet" data-i18n="plan-detail.diet.save">Save Diet</button>
+        </div>
+      </div>
+      <div class="row muted" id="diet-stats" style="padding:8px 0 0 0">0 items · 0 kcal</div>
+      <div class="list" id="diet-list"></div>
+    </section>
   </main>
 
   <footer class="footer"><span data-i18n="footer-plans">Vita Plans</span></footer>
@@ -68,51 +103,283 @@
       window.API_BASE=String(b).replace(/\/+$/,'');
     })();
     function api(path){ return window.API_BASE + path; }
+    async function jget(url){ const r=await fetch(url); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+    async function jsend(url,method,body){ const r=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); if(!r.ok) throw new Error(await r.text()); return r.json().catch(()=>({ok:true})); }
 
     const planId = new URLSearchParams(window.location.search).get("id");
+    const presetType = new URLSearchParams(window.location.search).get("type");
     if (!planId) { alert("Missing plan ID in URL"); location.href = "plans.html"; }
 
-    async function loadPlan() {
-      try {
-        const res = await fetch(api(`/api/plans/${planId}`));
-        if (!res.ok) throw new Error("Plan not found");
-        const plan = await res.json();
-        document.getElementById("plan_name").value = plan.name || "";
-        document.getElementById("plan_description").value = plan.description || "";
-        document.getElementById("plan_type").value = plan.type || "workout";
-        document.getElementById("plan-name-title").textContent = plan.name || "Plan Detail";
-      } catch (err) {
-        alert("Failed to load plan details.");
-        location.href = "plans.html";
+    let trainingItems = [];
+    let dietItems = [];
+
+    function setTypeVisibility(type){
+      var t = (type||'').toLowerCase();
+      document.getElementById('training-section').style.display = (t==='training')?'block':'none';
+      document.getElementById('diet-section').style.display = (t==='diet')?'block':'none';
+      var sel=document.getElementById('plan_type');
+      if(sel && sel.value!==t){ sel.value=t; }
+      var btnT=document.getElementById('toggle-training');
+      var btnD=document.getElementById('toggle-diet');
+      if(btnT){ btnT.classList.toggle('secondary', !(t==='training')); btnT.classList.toggle('active', (t==='training')); }
+      if(btnD){ btnD.classList.toggle('secondary', !(t==='diet')); btnD.classList.toggle('active', (t==='diet')); }
+    }
+
+    function rowTraining(item={ name:'', sets:'', reps:'', rest:'', day:'', notes:'' }){
+      const wrap=document.createElement('div');
+      wrap.className='row card row-tight';
+      wrap.style.gap='8px';
+      wrap.innerHTML = `
+        <input class="input" placeholder="Exercise" value="${item.name||''}">
+        <input class="input" placeholder="Sets" style="max-width:90px" value="${item.sets||''}">
+        <input class="input" placeholder="Reps" style="max-width:90px" value="${item.reps||''}">
+        <input class="input" placeholder="Rest (s)" style="max-width:110px" value="${item.rest||''}">
+        <input class="input" placeholder="Day" style="max-width:90px" value="${item.day||''}">
+        <input class="input" placeholder="Notes" value="${item.notes||''}">
+        <div class="row" style="gap:6px">
+          <button class="btn secondary" data-act="up">↑</button>
+          <button class="btn secondary" data-act="down">↓</button>
+          <button class="btn danger" data-act="del">✕</button>
+        </div>
+      `;
+      const inputs = wrap.querySelectorAll('input');
+      const up = wrap.querySelector('[data-act="up"]');
+      const down = wrap.querySelector('[data-act="down"]');
+      const del = wrap.querySelector('[data-act="del"]');
+      del.onclick=()=>{ wrap.remove(); syncTrainingFromDOM(); ensureEmptyState('training-list','No exercises'); };
+      up.onclick=()=>{ const p=wrap.parentElement; if(wrap.previousElementSibling) p.insertBefore(wrap, wrap.previousElementSibling); syncTrainingFromDOM(); };
+      down.onclick=()=>{ const n=wrap.nextElementSibling; if(n) n.after(wrap); syncTrainingFromDOM(); };
+      inputs.forEach(el=>el.addEventListener('input',()=>{ syncTrainingFromDOM(); }));
+      return wrap;
+    }
+
+    function rowDiet(item={ meal_time:'', item:'', quantity:'', unit:'', calories:'', notes:'' }){
+      const wrap=document.createElement('div');
+      wrap.className='row card row-tight';
+      wrap.style.gap='8px';
+      wrap.innerHTML = `
+        <select class="input" style="max-width:140px">
+          <option value="">Meal</option>
+          <option value="breakfast">Breakfast</option>
+          <option value="lunch">Lunch</option>
+          <option value="dinner">Dinner</option>
+          <option value="snack">Snack</option>
+        </select>
+        <input class="input" placeholder="Item" value="${item.item||''}">
+        <input class="input" placeholder="Qty" style="max-width:90px" value="${item.quantity||''}">
+        <input class="input" placeholder="Unit" style="max-width:100px" value="${item.unit||''}">
+        <input class="input" placeholder="Calories" style="max-width:110px" value="${item.calories||''}">
+        <input class="input" placeholder="Notes" value="${item.notes||''}">
+        <div class="row" style="gap:6px">
+          <button class="btn secondary" data-act="up">↑</button>
+          <button class="btn secondary" data-act="down">↓</button>
+          <button class="btn danger" data-act="del">✕</button>
+        </div>
+      `;
+      const mealEl=wrap.querySelector('select');
+      const inputs = wrap.querySelectorAll('input');
+      const up = wrap.querySelector('[data-act="up"]');
+      const down = wrap.querySelector('[data-act="down"]');
+      const del = wrap.querySelector('[data-act="del"]');
+      if(item.meal_time) mealEl.value=item.meal_time;
+      del.onclick=()=>{ wrap.remove(); syncDietFromDOM(); ensureEmptyState('diet-list','No items'); };
+      up.onclick=()=>{ const p=wrap.parentElement; if(wrap.previousElementSibling) p.insertBefore(wrap, wrap.previousElementSibling); syncDietFromDOM(); };
+      down.onclick=()=>{ const n=wrap.nextElementSibling; if(n) n.after(wrap); syncDietFromDOM(); };
+      [mealEl, ...inputs].forEach(el=>el.addEventListener('input',()=>{ syncDietFromDOM(); }));
+      return wrap;
+    }
+
+    function syncTrainingFromDOM(){
+      const list=document.querySelectorAll('#training-list .row.card');
+      trainingItems=[...list].map(row=>{
+        const els=row.querySelectorAll('input');
+        return { name:els[0].value, sets:els[1].value, reps:els[2].value, rest:els[3].value, day:els[4].value, notes:els[5].value };
+      });
+      updateTrainingStats();
+    }
+    function syncDietFromDOM(){
+      const list=document.querySelectorAll('#diet-list .row.card');
+      dietItems=[...list].map(row=>{
+        const meal=row.querySelector('select').value;
+        const els=row.querySelectorAll('input');
+        return { meal_time:meal, item:els[0].value, quantity:els[1].value, unit:els[2].value, calories:els[3].value, notes:els[4].value };
+      });
+      updateDietStats();
+    }
+
+    function updateTrainingStats(){
+      var el=document.getElementById('training-stats');
+      if(!el) return;
+      el.textContent = (trainingItems.length||0) + ' exercises';
+    }
+    function updateDietStats(){
+      var el=document.getElementById('diet-stats');
+      if(!el) return;
+      var totalKcal = dietItems.reduce(function(sum,it){
+        var n = parseFloat(it.calories);
+        return sum + (isNaN(n)?0:n);
+      },0);
+      el.textContent = (dietItems.length||0) + ' items · ' + Math.round(totalKcal) + ' kcal';
+    }
+    function ensureEmptyState(listId, msg){
+      var list=document.getElementById(listId);
+      if(!list) return;
+      var hasRows = list.querySelector('.row.card');
+      if(!hasRows){
+        var empty=document.createElement('div');
+        empty.className='muted';
+        empty.style.padding='8px 0';
+        empty.textContent = msg || 'No items';
+        list.appendChild(empty);
+      } else {
+        // remove stale empty markers
+        list.querySelectorAll('.muted').forEach(function(m){ if(!m.previousElementSibling && !m.nextElementSibling){ m.remove(); }});
       }
     }
 
-    async function savePlan() {
-      const payload = {
-        name: document.getElementById("plan_name").value.trim(),
-        description: document.getElementById("plan_description").value.trim(),
-        type: document.getElementById("plan_type").value.trim() || null
+    async function loadPlan(){
+      const res = await jget(api(`/api/plans/${planId}`));
+      document.getElementById('plan_name').value = res.name||'';
+      document.getElementById('plan_description').value = res.description||'';
+      const type = (presetType || res.type || 'training').toLowerCase();
+      document.getElementById('plan_type').value = type;
+      document.getElementById('plan-name-title').textContent = res.name || 'Plan Detail';
+      setTypeVisibility(type);
+      document.getElementById('btn-assign').href = `clients.html?assign_plan=${planId}&type=${document.getElementById('plan_type').value}`;
+    }
+
+    async function loadTraining(){
+      const list=document.getElementById('training-list');
+      list.innerHTML='';
+      trainingItems=[];
+      ensureEmptyState('training-list','No exercises');
+      try{
+        // Prefer enriched endpoint
+        const full = await jget(api(`/api/plans/${planId}/workouts/full`));
+        const sched = Array.isArray(full.schedule) ? full.schedule : [];
+        sched.forEach(function(slot){
+          const day = (slot.day_of_week ?? '').toString();
+          const exs = Array.isArray(slot.exercises) ? slot.exercises : [];
+          if(exs.length===0){
+            list.appendChild(rowTraining({ day: day }));
+          } else {
+            exs.forEach(function(ex){
+              list.appendChild(rowTraining({
+                name: ex.exercise_name || '',
+                sets: ex.sets || '',
+                reps: ex.reps || '',
+                rest: ex.rest_sec || '',
+                day: day,
+                notes: ex.tempo || ex.rir || ''
+              }));
+            });
+          }
+        });
+        ensureEmptyState('training-list','No exercises');
+        syncTrainingFromDOM();
+        return;
+      }catch(e){ /* fallthrough */ }
+      try{
+        // Fallback to legacy simple items
+        const data = await jget(api(`/api/training_plans/${planId}`));
+        const items = Array.isArray(data.items)?data.items:(Array.isArray(data)?data:[]);
+        items.forEach(function(it){ list.appendChild(rowTraining(it)); });
+        ensureEmptyState('training-list','No exercises');
+        syncTrainingFromDOM();
+      }catch(e){ list.innerHTML=''; trainingItems=[]; }
+    }
+
+    async function loadDiet(){
+      const list=document.getElementById('diet-list');
+      list.innerHTML='';
+      dietItems=[];
+      ensureEmptyState('diet-list','No items');
+      try{
+        const full = await jget(api(`/api/diet_plans/${planId}/full`));
+        const items = Array.isArray(full.items) ? full.items : [];
+        items.forEach(function(it){
+          list.appendChild(rowDiet({
+            meal_time: it.meal_name || it.meal_time || '',
+            item: it.food || it.item || '',
+            quantity: it.qty || it.quantity || '',
+            unit: it.unit || '',
+            calories: it.calories || '',
+            notes: it.notes || ''
+          }));
+        });
+        ensureEmptyState('diet-list','No items');
+        syncDietFromDOM();
+        return;
+      }catch(e){ /* fallthrough */ }
+      try{
+        const data = await jget(api(`/api/diet_plans/${planId}`));
+        const items = Array.isArray(data.items)?data.items:(Array.isArray(data)?data:[]);
+        items.forEach(function(it){ list.appendChild(rowDiet(it)); });
+        ensureEmptyState('diet-list','No items');
+        syncDietFromDOM();
+      }catch(e){ list.innerHTML=''; dietItems=[]; }
+    }
+
+    async function savePlan(){
+      const payload={
+        name: document.getElementById('plan_name').value.trim(),
+        description: document.getElementById('plan_description').value.trim(),
+        type: document.getElementById('plan_type').value.trim()
       };
-      const res = await fetch(api(`/api/plans/${planId}`), {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      if (res.ok) { alert("✅ Saved"); location.href = "plans.html"; }
-      else { const t=await res.text(); alert("❌ Failed: " + t); }
+      await jsend(api(`/api/plans/${planId}`),'PUT',payload);
+      alert('✅ Saved');
+      location.href='plans.html';
     }
 
-    async function deletePlan() {
-      if (!confirm("Delete this plan?")) return;
-      const res = await fetch(api(`/api/plans/${planId}`), { method: "DELETE" });
-      if (res.ok) { alert("✅ Deleted"); location.href = "plans.html"; }
-      else { const t=await res.text(); alert("❌ Failed: " + t); }
+    async function deletePlan(){
+      if(!confirm('Delete this plan?')) return;
+      await fetch(api(`/api/plans/${planId}`),{method:'DELETE'});
+      alert('✅ Deleted');
+      location.href='plans.html';
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
-      loadPlan();
+    async function saveTraining(){
+      syncTrainingFromDOM();
+      const body={ plan_id:Number(planId), items: trainingItems };
+      await jsend(api(`/api/training_plans/${planId}`),'PUT',body);
+      alert('✅ Training saved');
+    }
+
+    async function saveDiet(){
+      syncDietFromDOM();
+      const body={ plan_id:Number(planId), items: dietItems };
+      await jsend(api(`/api/diet_plans/${planId}`),'PUT',body);
+      alert('✅ Diet saved');
+    }
+
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      await loadPlan();
+      await Promise.all([loadTraining(), loadDiet()]);
+
       document.getElementById('saveButton').addEventListener('click', (e)=>{ e.preventDefault(); savePlan(); });
       document.getElementById('deleteButton').addEventListener('click', (e)=>{ e.preventDefault(); deletePlan(); });
+      document.getElementById('plan_type').addEventListener('change', (e)=> setTypeVisibility(e.target.value) );
+
+      var tgT=document.getElementById('toggle-training');
+      var tgD=document.getElementById('toggle-diet');
+      if(tgT){ tgT.addEventListener('click', ()=> setTypeVisibility('training')); }
+      if(tgD){ tgD.addEventListener('click', ()=> setTypeVisibility('diet')); }
+
+      document.getElementById('add-training-row').addEventListener('click', ()=>{
+        document.getElementById('training-list').appendChild(rowTraining());
+        syncTrainingFromDOM();
+      });
+      document.getElementById('save-training').addEventListener('click', saveTraining);
+
+      document.getElementById('add-diet-row').addEventListener('click', ()=>{
+        document.getElementById('diet-list').appendChild(rowDiet());
+        syncDietFromDOM();
+      });
+      document.getElementById('save-diet').addEventListener('click', saveDiet);
+
+      updateTrainingStats();
+      updateDietStats();
+      setTypeVisibility(document.getElementById('plan_type').value);
     });
   </script>
 </body>

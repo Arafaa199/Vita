@@ -281,7 +281,28 @@ class DietPlanIn(BaseModel):
     structure: Optional[str] = None  # JSON string
 
 
+
 class DietPlanOut(DietPlanIn, OrmBase):
+    id: int
+    created_at: datetime
+
+# --- Programs (bundle training + diet) ---
+class Program(Base):
+    __tablename__ = "programs"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(Text, nullable=False)
+    description = Column(Text)
+    training_plan_id = Column(Integer, ForeignKey("training_plans.id", ondelete="SET NULL"), nullable=True)
+    diet_plan_id = Column(Integer, ForeignKey("diet_plans.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class ProgramIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+    training_plan_id: Optional[int] = None
+    diet_plan_id: Optional[int] = None
+
+class ProgramOut(ProgramIn, OrmBase):
     id: int
     created_at: datetime
 
@@ -527,6 +548,7 @@ def update_diet_plan(plan_id: int, plan: DietPlanIn, db: Session = Depends(get_d
     db.refresh(dp)
     return dp
 
+
 @router.delete("/diet_plans/{plan_id}")
 def delete_diet_plan(plan_id: int, db: Session = Depends(get_db)):
     dp = db.query(DietPlan).filter(DietPlan.id == plan_id).first()
@@ -535,6 +557,71 @@ def delete_diet_plan(plan_id: int, db: Session = Depends(get_db)):
     db.delete(dp)
     db.commit()
     return {"message": "Diet plan deleted successfully"}
+
+
+# --- Programs CRUD ---
+@router.post("/programs/", response_model=ProgramOut)
+def create_program(p: ProgramIn, db: Session = Depends(get_db)):
+    obj = Program(**p.dict())
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.get("/programs/", response_model=List[ProgramOut])
+def list_programs(db: Session = Depends(get_db)):
+    return db.query(Program).order_by(Program.created_at.desc()).all()
+
+@router.get("/programs/{program_id}", response_model=ProgramOut)
+def get_program(program_id: int, db: Session = Depends(get_db)):
+    obj = db.query(Program).filter(Program.id == program_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Program not found")
+    return obj
+
+@router.put("/programs/{program_id}", response_model=ProgramOut)
+def update_program(program_id: int, payload: ProgramIn, db: Session = Depends(get_db)):
+    obj = db.query(Program).filter(Program.id == program_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Program not found")
+    for k, v in payload.dict().items():
+        setattr(obj, k, v)
+    db.commit()
+    db.refresh(obj)
+    return obj
+
+@router.delete("/programs/{program_id}")
+def delete_program(program_id: int, db: Session = Depends(get_db)):
+    obj = db.query(Program).filter(Program.id == program_id).first()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Program not found")
+    db.delete(obj)
+    db.commit()
+    return {"message": "Program deleted successfully"}
+
+@router.get("/programs/{program_id}/full")
+def get_program_full(program_id: int, db: Session = Depends(get_db)):
+    prog = db.query(Program).filter(Program.id == program_id).first()
+    if not prog:
+        raise HTTPException(status_code=404, detail="Program not found")
+
+    training = None
+    if prog.training_plan_id:
+        tp = db.query(TrainingPlan).filter(TrainingPlan.id == prog.training_plan_id).first()
+        if tp:
+            training = {"id": tp.id, "name": tp.name, "description": tp.description}
+
+    diet = None
+    if prog.diet_plan_id:
+        dp = db.query(DietPlan).filter(DietPlan.id == prog.diet_plan_id).first()
+        if dp:
+            diet = {"id": dp.id, "name": dp.name, "description": dp.description}
+
+    return {
+        "program": {"id": prog.id, "name": prog.name, "description": prog.description, "created_at": prog.created_at},
+        "training_plan": training,
+        "diet_plan": diet,
+    }
 
 
 
@@ -1213,6 +1300,7 @@ def stats_summary(db: Session = Depends(get_db)):
         "plans": db.query(func.count(Plan.id)).scalar(),
         "training_plans": db.query(func.count(TrainingPlan.id)).scalar(),
         "diet_plans": db.query(func.count(DietPlan.id)).scalar(),
+        "programs": db.query(func.count(Program.id)).scalar(),
     }
 
 Base.metadata.create_all(bind=engine)
