@@ -6,5 +6,8 @@
   "label-weight": "الوزن",
   "label-goal": "الهدف",
   "label-training-plan": "خطة التدريب",
-  "label-diet-plan": "خطة التغذية"
+  "label-diet-plan": "خطة التغذية",
+  "filter-all": "الكل",
+  "filter-active": "النشط",
+  "filter-inactive": "غير نشط"
 }
