@@ -1,3 +1,10 @@
+(function () {
+  var b = (typeof window.API_BASE === 'string' && window.API_BASE) || location.origin;
+  try { b = new URL(b, location.href).origin; } catch { b = location.origin; }
+  window.API_BASE = String(b).replace(/\/+$/, '');
+})();
+function api(path){ return window.API_BASE + path; }
+
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.getElementById("add-plan-form");
 
@@ -11,7 +18,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      const res = await fetch(window.API_BASE + "/api/plans/", {
+      const res = await fetch(api("/api/plans/"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
