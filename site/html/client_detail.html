@@ -33,6 +33,7 @@
       </div>
       <div class="row">
         <a class="btn" id="btn-back" href="clients.html">⬅ Back</a>
+        <a class="btn secondary" id="btn-plans" href="client_plan.html">Plans</a>
       </div>
     </div>
 
@@ -84,7 +85,7 @@
         <input id="end_date" type="date" />
       </div>
 
-      <div class="col-span-2 row" style="gap:12px">
+      <div class="col-span-2 row" style="gap:12px;justify-content:flex-end">
         <button type="button" class="btn" id="saveButton">Save</button>
         <button type="button" class="btn danger" id="deleteButton">Delete</button>
       </div>
@@ -119,6 +120,7 @@
 (function(){var b=(typeof window.API_BASE==='string'&&window.API_BASE)||location.origin;try{var u=new URL(b,location.href);b=u.origin;}catch(e){b=location.origin}window.API_BASE=String(b).replace(/\/+$/,'')})();
 function buildApiUrl(p){return window.API_BASE.replace(/\/+$/,'')+p}
 const clientId=new URLSearchParams(location.search).get('id');
+(function(){ var p=document.getElementById('btn-plans'); if(p && clientId){ p.href='client_plan.html?id='+encodeURIComponent(clientId);} })();
 if(!clientId) location.href='clients.html';
 async function uploadClientPhoto(label,file){if(!file||!clientId)return;const fd=new FormData();fd.append('client_id',clientId);fd.append('label',label);fd.append('file',file);const r=await fetch(buildApiUrl('/upload_photo/'),{method:'POST',body:fd});if(!r.ok)throw new Error('upload');const d=await r.json();return d.image_url}
 function fill(c){document.getElementById('client-name').textContent=c.full_name||'Client';document.getElementById('full_name').value=c.full_name||'';document.getElementById('email').value=c.email||'';document.getElementById('phone').value=c.phone||'';document.getElementById('age').value=c.age??'';document.getElementById('weight').value=c.weight??'';document.getElementById('height').value=c.height??'';document.getElementById('goal').value=c.goal||'';document.getElementById('notes').value=c.notes||'';document.getElementById('membership_active').checked=!!c.membership_active;document.getElementById('start_date').value=c.start_date||'';document.getElementById('end_date').value=c.end_date||''}
