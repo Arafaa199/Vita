@@ -6,5 +6,9 @@
   "label-weight": "Weight",
   "label-goal": "Goal",
   "label-training-plan": "Training Plan",
-  "label-diet-plan": "Diet Plan"
+  "label-diet-plan": "Diet Plan",
+  "filter-all": "All",
+  "filter-active": "Active",
+  "filter-inactive": "Inactive",
+  "add": "Add"
 }
