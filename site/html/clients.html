@@ -9,10 +9,10 @@
   <div class="appbar-inner">
     <div class="brand"><div class="brand-badge"></div> Vita Trainer</div>
     <nav class="nav">
-      <a id="nav-home" href="trainer_home.html" id="nav-home"><span data-i18n="nav-home"></span></a>
-      <a id="nav-clients" class="active" href="clients.html" id="nav-clients"><span data-i18n="nav-clients"></span></a>
-      <a id="nav-plans" href="plans.html" id="nav-plans"><span data-i18n="nav-plans"></span></a>
-      <a id="nav-settings" href="settings.html" id="nav-settings"><span data-i18n="nav-settings"></span></a>
+      <a id="nav-home" href="trainer_home.html"><span data-i18n="nav-home"></span></a>
+      <a id="nav-clients" class="active" href="clients.html"><span data-i18n="nav-clients"></span></a>
+      <a id="nav-plans" href="plans.html"><span data-i18n="nav-plans"></span></a>
+      <a id="nav-settings" href="settings.html"><span data-i18n="nav-settings"></span></a>
     </nav>
     <div class="toolbar">
       <div class="lang-toggle">
@@ -46,7 +46,7 @@
   </section>
 </main>
 
-<footer class="footer">Vita Clients</footer>
+<footer class="footer"><span data-i18n="footer-clients">Vita Clients</span></footer>
 <script src="../js/config.js"></script>
 <script src="../js/i18n.js"></script>
 <script src="../js/theme.js"></script>
@@ -54,29 +54,42 @@
 (function(){var b=(typeof window.API_BASE==='string'&&window.API_BASE)||location.origin;try{var u=new URL(b,location.href);b=u.origin;}catch(e){b=location.origin}window.API_BASE=String(b).replace(/\/+$/,'')})();
 function buildApiUrl(p){return window.API_BASE.replace(/\/+$/,'')+p}
 let allClients=[];
-function clientCard(c){const a=c.membership_active;return `
-    <div class="card" style="padding:16px">
-      <div class="row" style="justify-content:space-between">
-        <div class="row">
-          <div class="status-dot ${a?'bg-ok':'bg-danger'}"></div>
-          <strong style="font-size:1.05rem;margin-left:6px">${c.full_name||'—'}</strong>
+function e(s){
+  return String(s==null?'' : s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+function clientCard(c){
+  const a = c.membership_active;
+  return `
+    <div class="card" style="padding:16px; display:flex; flex-direction:row; justify-content:space-between; align-items:stretch;">
+      <a href="client_detail.html?id=${c.id}" style="text-decoration:none; color:inherit; flex:1; display:block;">
+        <div>
+          <div class="row">
+            <div class="status-dot ${a ? 'bg-ok' : 'bg-danger'}"></div>
+            <strong style="font-size:1.05rem;margin-left:6px">${e(c.full_name || '—')}</strong>
+          </div>
+          <div class="kv" style="margin-top:8px">
+            <label>Email</label><div class="value">${e(c.email || '—')}</div>
+            <label>Age</label><div class="value">${c.age ?? '—'}</div>
+            <label>Weight</label><div class="value">${c.weight ?? '—'} kg</div>
+            <label>Goal</label><div class="value">${e(c.goal || '—')}</div>
+          </div>
         </div>
-        <div class="row">
-          <a class="btn ghost" href="client_detail.html?id=${c.id}">Details</a>
-          <a class="btn ghost" href="client_plan.html?id=${c.id}">Plan</a>
-        </div>
+      </a>
+      <div style="display:flex; align-items:flex-start; margin-left:16px;">
+        <a class="btn ghost" href="client_plan.html?id=${c.id}"><span data-i18n="plan-button">Plan</span></a>
       </div>
-      <div class="kv" style="margin-top:8px">
-        <label>Email</label><div class="value">${c.email||'—'}</div>
-        <label>Age</label><div class="value">${c.age??'—'}</div>
-        <label>Weight</label><div class="value">${c.weight??'—'} kg</div>
-        <label>Goal</label><div class="value">${c.goal||'—'}</div>
-      </div>
-    </div>`}
+    </div>
+  `;
+}
 function render(list){
   const el=document.getElementById('client-list');
   if(!Array.isArray(list) || list.length===0){
-    el.innerHTML = '<div class="card" style="padding:16px"><div class="card-sub">No clients match</div></div>';
+    el.innerHTML = '<div class="card" style="padding:16px"><div class="card-sub" data-i18n="no-match">No clients match</div></div>';
     return;
   }
   el.innerHTML=list.map(clientCard).join('');
