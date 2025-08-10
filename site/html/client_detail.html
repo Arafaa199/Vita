@@ -29,7 +29,7 @@
     <div class="card-header">
       <div>
         <div class="card-title" id="client-name">Client Detail</div>
-        <div class="card-sub">Edit client profile, membership and plans</div>
+        <div class="card-sub">Edit client profile</div>
       </div>
       <div class="row">
         <a class="btn" id="btn-back" href="clients.html">⬅ Back</a>
@@ -92,17 +92,6 @@
   </section>
 
   <section class="card">
-    <div class="card-header">
-      <div class="card-title">Assigned Plan</div>
-    </div>
-    <ul id="assigned-plans-list" class="list"></ul>
-    <div class="row" style="gap:12px;margin-top:12px">
-      <select id="plan-select"></select>
-      <button class="btn" id="assign-plan-btn">Assign</button>
-    </div>
-  </section>
-
-  <section class="card">
     <div class="card-header"><div class="card-title">Client Pictures</div></div>
     <div class="grid cols-2">
       <div class="center">
@@ -136,15 +125,10 @@ function fill(c){document.getElementById('client-name').textContent=c.full_name|
 async function loadClient(){const r=await fetch(buildApiUrl(`/api/clients/${clientId}`));if(!r.ok)throw new Error('load client');fill(await r.json())}
 async function saveChanges(){const body={full_name:document.getElementById('full_name').value,email:document.getElementById('email').value,phone:document.getElementById('phone').value,age:parseInt(document.getElementById('age').value||'0'),weight:parseFloat(document.getElementById('weight').value||'0'),height:parseFloat(document.getElementById('height').value||'0'),goal:document.getElementById('goal').value,notes:document.getElementById('notes').value,membership_active:document.getElementById('membership_active').checked,start_date:document.getElementById('start_date').value,end_date:document.getElementById('end_date').value};const r=await fetch(buildApiUrl(`/api/clients/${clientId}`),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(!r.ok)throw new Error('update')}
 async function deleteClient(){const r=await fetch(buildApiUrl(`/api/clients/${clientId}`),{method:'DELETE'});if(!r.ok)throw new Error('delete')}
-async function loadPlans(){const r=await fetch(buildApiUrl('/api/plans/'));if(!r.ok)throw new Error('plans');const plans=await r.json();const s=document.getElementById('plan-select');s.innerHTML='<option value="">—</option>';plans.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;s.appendChild(o)})}
-async function loadAssigned(){const r=await fetch(buildApiUrl(`/api/client_plans/${clientId}/history`));if(!r.ok)throw new Error('history');const rows=await r.json();const ul=document.getElementById('assigned-plans-list');ul.innerHTML='';rows.forEach(x=>{const li=document.createElement('li');li.textContent=`#${x.plan_id} · ${new Date(x.assigned_on).toLocaleDateString()}`;ul.appendChild(li)})}
-async function assignPlan(){const pid=document.getElementById('plan-select').value;if(!pid)return;const r=await fetch(buildApiUrl('/api/client_plans/'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client_id:Number(clientId),plan_id:Number(pid)})});if(!r.ok)throw new Error('assign');await loadAssigned()}
 
 window.addEventListener('DOMContentLoaded',()=>{
   loadClient().catch(()=>alert('Failed to load client'));
-  loadPlans().catch(()=>alert('Failed to load plans'));
   loadAssigned().catch(()=>{});
-  document.getElementById('assign-plan-btn').addEventListener('click',assignPlan);
   document.getElementById('saveButton').addEventListener('click',async()=>{try{await saveChanges();alert('Saved')}catch(e){alert('Save failed')}});
   document.getElementById('deleteButton').addEventListener('click',async()=>{if(!confirm('Delete client?'))return;try{await deleteClient();location.href='clients.html'}catch(e){alert('Delete failed')}});
   document.getElementById('before-upload').addEventListener('change',async(e)=>{const f=e.target.files[0];if(!f)return;try{const url=await uploadClientPhoto('before',f);if(url)document.getElementById('before-pic').src=url}catch{alert('Upload failed')}});
