@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Depends, APIRouter, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, TIMESTAMP, ForeignKey, text as SA_TEXT
@@ -45,6 +45,10 @@ app.mount("/api/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
 router = APIRouter()
+
+# --- Pydantic V2 ORM base ---
+class OrmBase(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
 # --- Health Endpoints ---
 @router.get("/health/ping")
@@ -163,16 +167,13 @@ class ClientCreate(BaseModel):
     phone: Optional[str] = None
     height: Optional[float] = None
 
-class ClientRead(ClientCreate):
+class ClientRead(ClientCreate, OrmBase):
     id: int
     created_at: datetime
     start_date: Optional[date]
     end_date: Optional[date]
     phone: Optional[str] = None
     height: Optional[float] = None
-
-    class Config:
-        orm_mode = True
 
 
 #api routes
@@ -240,12 +241,9 @@ class PlanIn(BaseModel):
     type: Optional[str] = None
 
 
-class PlanOut(PlanIn):
+class PlanOut(PlanIn, OrmBase):
     id: int
     created_at: datetime
-
-    class Config:
-        orm_mode = True
 
 
 # --- Training & Diet Plan Models ---
@@ -273,11 +271,9 @@ class TrainingPlanIn(BaseModel):
     description: Optional[str] = None
     structure: Optional[str] = None  # JSON string
 
-class TrainingPlanOut(TrainingPlanIn):
+class TrainingPlanOut(TrainingPlanIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 class DietPlanIn(BaseModel):
     name: str
@@ -285,11 +281,9 @@ class DietPlanIn(BaseModel):
     structure: Optional[str] = None  # JSON string
 
 
-class DietPlanOut(DietPlanIn):
+class DietPlanOut(DietPlanIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 
 # --- Memberships ---
@@ -364,11 +358,9 @@ class MembershipIn(BaseModel):
     renewal_due_on: Optional[date] = None
     notes: Optional[str] = None
 
-class MembershipOut(MembershipIn):
+class MembershipOut(MembershipIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 # --- Schemas: Progress Metrics ---
 class ProgressMetricIn(BaseModel):
@@ -383,11 +375,9 @@ class ProgressMetricIn(BaseModel):
     arm: Optional[float] = None
     notes: Optional[str] = None
 
-class ProgressMetricOut(ProgressMetricIn):
+class ProgressMetricOut(ProgressMetricIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 # --- Schemas: Workout Log ---
 class WorkoutLogIn(BaseModel):
@@ -400,11 +390,9 @@ class WorkoutLogIn(BaseModel):
     rpe: Optional[float] = None
     notes: Optional[str] = None
 
-class WorkoutLogOut(WorkoutLogIn):
+class WorkoutLogOut(WorkoutLogIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 # --- Schemas: Meal Plan Items ---
 class MealPlanItemIn(BaseModel):
@@ -419,12 +407,10 @@ class MealPlanItemIn(BaseModel):
     notes: Optional[str] = None
     position: Optional[int] = 0
 
-class MealPlanItemOut(MealPlanItemIn):
+class MealPlanItemOut(MealPlanItemIn, OrmBase):
     id: int
     diet_plan_id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 
 
@@ -746,11 +732,9 @@ class ExerciseIn(BaseModel):
     equipment: Optional[str] = None
     notes: Optional[str] = None
 
-class ExerciseOut(ExerciseIn):
+class ExerciseOut(ExerciseIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 @router.post("/exercises/", response_model=ExerciseOut)
 def create_exercise(ex: ExerciseIn, db: Session = Depends(get_db)):
@@ -818,11 +802,9 @@ class WorkoutIn(BaseModel):
     name: str
     description: Optional[str] = None
 
-class WorkoutOut(WorkoutIn):
+class WorkoutOut(WorkoutIn, OrmBase):
     id: int
     created_at: datetime
-    class Config:
-        orm_mode = True
 
 class WorkoutExerciseItemIn(BaseModel):
     exercise_id: int
@@ -943,6 +925,162 @@ def set_plan_schedule(plan_id: int, payload: PlanScheduleIn, db: Session = Depen
         db.refresh(rec)
     return out
 
+
+# --- Enriched plan payloads ---
+@router.get("/plans/{plan_id}/workouts/full")
+def get_plan_workouts_full(plan_id: int, db: Session = Depends(get_db)):
+    sched = db.query(PlanWorkout).filter(PlanWorkout.plan_id == plan_id) \
+             .order_by(PlanWorkout.day_of_week.asc(), PlanWorkout.position.asc()).all()
+    workout_ids = [r.workout_id for r in sched]
+
+    workouts = {}
+    if workout_ids:
+        for w in db.query(Workout).filter(Workout.id.in_(workout_ids)).all():
+            workouts[w.id] = {"id": w.id, "name": w.name, "description": w.description}
+
+    items = {}
+    if workout_ids:
+        for wi in workout_ids:
+            rows = db.query(WorkoutExercise).filter(WorkoutExercise.workout_id == wi) \
+                      .order_by(WorkoutExercise.position.asc()).all()
+            out_rows = []
+            for r in rows:
+                ex = db.query(Exercise).filter(Exercise.id == r.exercise_id).first()
+                out_rows.append({
+                    "id": r.id,
+                    "exercise_id": r.exercise_id,
+                    "exercise_name": ex.name if ex else None,
+                    "position": r.position,
+                    "sets": r.sets,
+                    "reps": r.reps,
+                    "rest_sec": r.rest_sec,
+                    "rir": r.rir,
+                    "tempo": r.tempo,
+                })
+            items[wi] = out_rows
+
+    return {
+        "plan_id": plan_id,
+        "schedule": [
+            {
+                "id": r.id,
+                "workout_id": r.workout_id,
+                "day_of_week": r.day_of_week,
+                "position": r.position,
+                "workout": workouts.get(r.workout_id),
+                "exercises": items.get(r.workout_id, []),
+            }
+            for r in sched
+        ],
+    }
+
+@router.get("/diet_plans/{plan_id}/full")
+def get_diet_plan_full(plan_id: int, db: Session = Depends(get_db)):
+    dp = db.query(DietPlan).filter(DietPlan.id == plan_id).first()
+    if not dp:
+        raise HTTPException(status_code=404, detail="Diet plan not found")
+    items = db.query(MealPlanItem).filter(MealPlanItem.diet_plan_id == plan_id) \
+             .order_by(MealPlanItem.position.asc(), MealPlanItem.id.asc()).all()
+    return {
+        "plan": {"id": dp.id, "name": dp.name, "description": dp.description},
+        "items": [
+            {
+                "id": it.id,
+                "meal_name": it.meal_name,
+                "food": it.food,
+                "qty": it.qty,
+                "unit": it.unit,
+                "calories": it.calories,
+                "protein": it.protein,
+                "carbs": it.carbs,
+                "fats": it.fats,
+                "notes": it.notes,
+                "position": it.position,
+            } for it in items
+        ],
+    }
+
+# --- Client overview (for dashboards) ---
+@router.get("/clients/{client_id}/overview")
+def client_overview(client_id: int, db: Session = Depends(get_db)):
+    client = db.query(Client).filter(Client.id == client_id).first()
+    if not client:
+        raise HTTPException(status_code=404, detail="Client not found")
+
+    latest_membership = (
+        db.query(Membership)
+          .filter(Membership.client_id == client_id)
+          .order_by(Membership.created_at.desc())
+          .first()
+    )
+
+    latest_generic = (
+        db.query(ClientPlan, Plan)
+          .join(Plan, ClientPlan.plan_id == Plan.id)
+          .filter(ClientPlan.client_id == client_id)
+          .order_by(ClientPlan.assigned_on.desc())
+          .first()
+    )
+
+    latest_training = (
+        db.query(ClientTrainingPlan, TrainingPlan)
+          .join(TrainingPlan, ClientTrainingPlan.training_plan_id == TrainingPlan.id)
+          .filter(ClientTrainingPlan.client_id == client_id)
+          .order_by(ClientTrainingPlan.assigned_on.desc())
+          .first()
+    )
+
+    latest_diet = (
+        db.query(ClientDietPlan, DietPlan)
+          .join(DietPlan, ClientDietPlan.diet_plan_id == DietPlan.id)
+          .filter(ClientDietPlan.client_id == client_id)
+          .order_by(ClientDietPlan.assigned_on.desc())
+          .first()
+    )
+
+    return {
+        "client": {
+            "id": client.id,
+            "full_name": client.full_name,
+            "email": client.email,
+            "phone": client.phone,
+            "membership_active": client.membership_active,
+        },
+        "membership": (None if not latest_membership else {
+            "id": latest_membership.id,
+            "package_name": latest_membership.package_name,
+            "price": latest_membership.price,
+            "status": latest_membership.status,
+            "start_date": latest_membership.start_date,
+            "end_date": latest_membership.end_date,
+            "renewal_due_on": latest_membership.renewal_due_on,
+        }),
+        "generic_plan": (None if not latest_generic else {
+            "id": latest_generic[0].id,
+            "assigned_on": latest_generic[0].assigned_on,
+            "plan": {
+                "id": latest_generic[1].id,
+                "name": latest_generic[1].name,
+                "type": latest_generic[1].type,
+            }
+        }),
+        "training_plan": (None if not latest_training else {
+            "id": latest_training[0].id,
+            "assigned_on": latest_training[0].assigned_on,
+            "plan": {
+                "id": latest_training[1].id,
+                "name": latest_training[1].name,
+            }
+        }),
+        "diet_plan": (None if not latest_diet else {
+            "id": latest_diet[0].id,
+            "assigned_on": latest_diet[0].assigned_on,
+            "plan": {
+                "id": latest_diet[1].id,
+                "name": latest_diet[1].name,
+            }
+        }),
+    }
 
 # --- Membership routes ---
 @router.post("/memberships/", response_model=MembershipOut)
