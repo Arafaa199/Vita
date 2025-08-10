@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, APIRouter, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, TIMESTAMP, ForeignKey, text as SA_TEXT
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, date
@@ -946,9 +947,16 @@ def set_plan_schedule(plan_id: int, payload: PlanScheduleIn, db: Session = Depen
 # --- Membership routes ---
 @router.post("/memberships/", response_model=MembershipOut)
 def create_membership(payload: MembershipIn, db: Session = Depends(get_db)):
+    # ensure client exists
+    if not db.query(Client).filter(Client.id == payload.client_id).first():
+        raise HTTPException(status_code=404, detail="Client not found")
     obj = Membership(**payload.dict())
     db.add(obj)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid membership payload")
     db.refresh(obj)
     return obj
 
