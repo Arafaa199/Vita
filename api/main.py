@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, APIRouter, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
-from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, TIMESTAMP, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, Boolean, Date, DateTime, Text, TIMESTAMP, ForeignKey, text as SA_TEXT
 from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime, date
 from .db import SessionLocal, Base, engine
@@ -21,7 +21,16 @@ os.makedirs(UPLOADS_DIR, exist_ok=True)
 
 
 
+
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def get_db():
     db = SessionLocal()
@@ -33,7 +42,18 @@ def get_db():
 app.mount("/api/uploads", StaticFiles(directory=UPLOADS_DIR), name="uploads")
 
 
+
 router = APIRouter()
+
+# --- Health Endpoints ---
+@router.get("/health/ping")
+def health_ping():
+    return {"status": "ok"}
+
+@router.get("/health/db")
+def health_db(db: Session = Depends(get_db)):
+    db.execute(SA_TEXT("SELECT 1"))
+    return {"status": "ok"}
 
 @router.get("/clients/{client_id}/photos")
 def get_client_photos(client_id: int, db: Session = Depends(get_db)):
@@ -164,9 +184,14 @@ def create_client(client: ClientCreate, db: Session = Depends(get_db)):
     return db_client
 
 @router.get("/clients/", response_model=List[ClientRead])
-def read_clients(db: Session = Depends(get_db)):
-    clients = db.query(Client).all()
-    return clients
+def read_clients(q: Optional[str] = None, active: Optional[bool] = None, db: Session = Depends(get_db)):
+    query = db.query(Client)
+    if q:
+        like = f"%{q}%"
+        query = query.filter((Client.full_name.ilike(like)) | (Client.email.ilike(like)) | (Client.phone.ilike(like)))
+    if active is not None:
+        query = query.filter(Client.membership_active == active)
+    return query.order_by(Client.created_at.desc()).all()
 
 @router.get("/clients/{client_id}", response_model=ClientRead)
 def get_client_by_id(client_id: int, db: Session = Depends(get_db)):
@@ -566,6 +591,229 @@ def get_diet_history(client_id: int, db: Session = Depends(get_db)):
              .order_by(ClientDietPlan.assigned_on.desc())\
              .all()
     return rows
+
+
+# --- Exercise, Workout, PlanWorkout Models, Schemas, and Endpoints ---
+class Exercise(Base):
+    __tablename__ = "exercises"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    primary_muscle = Column(String)
+    equipment = Column(String)
+    notes = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class ExerciseIn(BaseModel):
+    name: str
+    primary_muscle: Optional[str] = None
+    equipment: Optional[str] = None
+    notes: Optional[str] = None
+
+class ExerciseOut(ExerciseIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+@router.post("/exercises/", response_model=ExerciseOut)
+def create_exercise(ex: ExerciseIn, db: Session = Depends(get_db)):
+    o = Exercise(**ex.dict())
+    db.add(o)
+    db.commit()
+    db.refresh(o)
+    return o
+
+@router.get("/exercises/", response_model=List[ExerciseOut])
+def list_exercises(q: Optional[str] = None, db: Session = Depends(get_db)):
+    qry = db.query(Exercise)
+    if q:
+        like = f"%{q}%"
+        qry = qry.filter((Exercise.name.ilike(like)) | (Exercise.primary_muscle.ilike(like)))
+    return qry.order_by(Exercise.created_at.desc()).all()
+
+@router.get("/exercises/{exercise_id}", response_model=ExerciseOut)
+def get_exercise(exercise_id: int, db: Session = Depends(get_db)):
+    o = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    return o
+
+@router.put("/exercises/{exercise_id}", response_model=ExerciseOut)
+def update_exercise(exercise_id: int, data: ExerciseIn, db: Session = Depends(get_db)):
+    o = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    for k, v in data.dict().items():
+        setattr(o, k, v)
+    db.commit()
+    db.refresh(o)
+    return o
+
+@router.delete("/exercises/{exercise_id}")
+def delete_exercise(exercise_id: int, db: Session = Depends(get_db)):
+    o = db.query(Exercise).filter(Exercise.id == exercise_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Exercise not found")
+    db.delete(o)
+    db.commit()
+    return {"message": "Exercise deleted"}
+
+class Workout(Base):
+    __tablename__ = "workouts"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class WorkoutExercise(Base):
+    __tablename__ = "workout_exercises"
+    id = Column(Integer, primary_key=True, index=True)
+    workout_id = Column(Integer, ForeignKey("workouts.id", ondelete="CASCADE"))
+    exercise_id = Column(Integer, ForeignKey("exercises.id", ondelete="CASCADE"))
+    position = Column(Integer, default=0)
+    sets = Column(Integer)
+    reps = Column(Integer)
+    rest_sec = Column(Integer)
+    rir = Column(Integer)
+    tempo = Column(String)
+
+class WorkoutIn(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+class WorkoutOut(WorkoutIn):
+    id: int
+    created_at: datetime
+    class Config:
+        orm_mode = True
+
+class WorkoutExerciseItemIn(BaseModel):
+    exercise_id: int
+    position: int = 0
+    sets: Optional[int] = None
+    reps: Optional[int] = None
+    rest_sec: Optional[int] = None
+    rir: Optional[int] = None
+    tempo: Optional[str] = None
+
+class WorkoutExerciseItemOut(WorkoutExerciseItemIn):
+    id: int
+
+@router.post("/workouts/", response_model=WorkoutOut)
+def create_workout(w: WorkoutIn, db: Session = Depends(get_db)):
+    o = Workout(**w.dict())
+    db.add(o)
+    db.commit()
+    db.refresh(o)
+    return o
+
+@router.get("/workouts/", response_model=List[WorkoutOut])
+def list_workouts(db: Session = Depends(get_db)):
+    return db.query(Workout).order_by(Workout.created_at.desc()).all()
+
+@router.get("/workouts/{workout_id}", response_model=WorkoutOut)
+def get_workout(workout_id: int, db: Session = Depends(get_db)):
+    o = db.query(Workout).filter(Workout.id == workout_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return o
+
+@router.put("/workouts/{workout_id}", response_model=WorkoutOut)
+def update_workout(workout_id: int, data: WorkoutIn, db: Session = Depends(get_db)):
+    o = db.query(Workout).filter(Workout.id == workout_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    for k, v in data.dict().items():
+        setattr(o, k, v)
+    db.commit()
+    db.refresh(o)
+    return o
+
+@router.delete("/workouts/{workout_id}")
+def delete_workout(workout_id: int, db: Session = Depends(get_db)):
+    o = db.query(Workout).filter(Workout.id == workout_id).first()
+    if not o:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    db.delete(o)
+    db.commit()
+    return {"message": "Workout deleted"}
+
+@router.get("/workouts/{workout_id}/exercises", response_model=List[WorkoutExerciseItemOut])
+def get_workout_items(workout_id: int, db: Session = Depends(get_db)):
+    items = db.query(WorkoutExercise).filter(WorkoutExercise.workout_id == workout_id).order_by(WorkoutExercise.position.asc()).all()
+    return items
+
+@router.put("/workouts/{workout_id}/exercises", response_model=List[WorkoutExerciseItemOut])
+def set_workout_items(workout_id: int, items: List[WorkoutExerciseItemIn], db: Session = Depends(get_db)):
+    db.query(WorkoutExercise).filter(WorkoutExercise.workout_id == workout_id).delete()
+    out = []
+    for i, it in enumerate(items):
+        rec = WorkoutExercise(
+            workout_id=workout_id,
+            exercise_id=it.exercise_id,
+            position=it.position if it.position is not None else i,
+            sets=it.sets,
+            reps=it.reps,
+            rest_sec=it.rest_sec,
+            rir=it.rir,
+            tempo=it.tempo,
+        )
+        db.add(rec)
+        out.append(rec)
+    db.commit()
+    for rec in out:
+        db.refresh(rec)
+    return out
+
+class PlanWorkout(Base):
+    __tablename__ = "plan_workouts"
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("plans.id", ondelete="CASCADE"))
+    workout_id = Column(Integer, ForeignKey("workouts.id", ondelete="CASCADE"))
+    day_of_week = Column(Integer)  # 0-6
+    position = Column(Integer, default=0)
+    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+class PlanWorkoutMapIn(BaseModel):
+    workout_id: int
+    day_of_week: int
+    position: Optional[int] = 0
+
+class PlanScheduleIn(BaseModel):
+    items: List[PlanWorkoutMapIn]
+
+class PlanScheduleItemOut(BaseModel):
+    id: int
+    workout_id: int
+    day_of_week: int
+    position: int
+
+@router.get("/plans/{plan_id}/workouts", response_model=List[PlanScheduleItemOut])
+def get_plan_schedule(plan_id: int, db: Session = Depends(get_db)):
+    rows = db.query(PlanWorkout).filter(PlanWorkout.plan_id == plan_id).order_by(PlanWorkout.day_of_week.asc(), PlanWorkout.position.asc()).all()
+    return rows
+
+@router.put("/plans/{plan_id}/workouts", response_model=List[PlanScheduleItemOut])
+def set_plan_schedule(plan_id: int, payload: PlanScheduleIn, db: Session = Depends(get_db)):
+    db.query(PlanWorkout).filter(PlanWorkout.plan_id == plan_id).delete()
+    out = []
+    for i, it in enumerate(payload.items):
+        rec = PlanWorkout(plan_id=plan_id, workout_id=it.workout_id, day_of_week=it.day_of_week, position=(it.position or 0))
+        db.add(rec)
+        out.append(rec)
+    db.commit()
+    for rec in out:
+        db.refresh(rec)
+    return out
+
+@router.get("/stats/summary")
+def stats_summary(db: Session = Depends(get_db)):
+    return {
+        "clients": db.query(func.count(Client.id)).scalar(),
+        "plans": db.query(func.count(Plan.id)).scalar(),
+        "training_plans": db.query(func.count(TrainingPlan.id)).scalar(),
+        "diet_plans": db.query(func.count(DietPlan.id)).scalar(),
+    }
 
 Base.metadata.create_all(bind=engine)
 app.include_router(router, prefix="/api")
