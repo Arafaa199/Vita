@@ -32,13 +32,14 @@
         <div class="card-sub" id="clients-subtext"><span data-i18n="clients-subtext"></span></div>
       </div>
       <div class="searchbar">
-        <input id="search-input"  data-i18n-placeholder="search-placeholder" />
+        <input id="search-input" type="search" class="input" placeholder="Search…" data-i18n-placeholder="search-placeholder" autocomplete="off" />
+        <button id="search-clear" class="btn ghost" type="button" aria-label="Clear">✕</button>
         <select id="membership-filter">
-          <option value="all">All</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
+          <option value="all" data-i18n="filter-all">All</option>
+          <option value="active" data-i18n="filter-active">Active</option>
+          <option value="inactive" data-i18n="filter-inactive">Inactive</option>
         </select>
-        <a class="btn secondary" href="add_client.html">+ Add</a>
+        <a class="btn secondary" href="add_client.html" data-i18n="add">+ Add</a>
       </div>
     </div>
     <div id="client-list" class="grid cols-2"></div>
@@ -72,11 +73,43 @@ function clientCard(c){const a=c.membership_active;return `
         <label>Goal</label><div class="value">${c.goal||'—'}</div>
       </div>
     </div>`}
-function render(list){const el=document.getElementById('client-list');el.innerHTML=list.map(clientCard).join('')}
-function filterAndRender(){const q=document.getElementById('search-input').value.toLowerCase();const f=document.getElementById('membership-filter').value;const filtered=allClients.filter(c=>{const name=(c.full_name||'').toLowerCase().includes(q);const status=f==='all'||(f==='active'&&c.membership_active)||(f==='inactive'&&!c.membership_active);return name&&status});render(filtered)}
-document.addEventListener('DOMContentLoaded',async()=>{try{const res=await fetch(buildApiUrl('/api/clients/'));if(!res.ok)throw new Error('Load failed');allClients=await res.json();render(allClients)}catch(e){console.error(e);alert('❌ Failed to load clients')}
+function render(list){
+  const el=document.getElementById('client-list');
+  if(!Array.isArray(list) || list.length===0){
+    el.innerHTML = '<div class="card" style="padding:16px"><div class="card-sub">No clients match</div></div>';
+    return;
+  }
+  el.innerHTML=list.map(clientCard).join('');
+}
+function normalize(v){ return (v||'').toString().toLowerCase().trim(); }
+function matches(c,q){
+  if(!q) return true;
+  const fields=[c.full_name,c.email,c.phone,c.goal].map(normalize);
+  return fields.some(f=>f.includes(q));
+}
+function filterNow(){
+  const q=normalize(document.getElementById('search-input').value);
+  const f=document.getElementById('membership-filter').value;
+  const filtered=allClients.filter(c=>{
+    const status = f==='all'||(f==='active'&&c.membership_active)||(f==='inactive'&&!c.membership_active);
+    return status && matches(c,q);
+  });
+  render(filtered);
+}
+let tmr; function filterAndRender(){ clearTimeout(tmr); tmr=setTimeout(filterNow,150); }
+document.addEventListener('DOMContentLoaded',async()=>{
+  try{
+    const res=await fetch(buildApiUrl('/api/clients/'));
+    if(!res.ok)throw new Error('Load failed');
+    allClients=await res.json();
+    render(allClients)
+  }catch(e){
+    console.error(e);alert('❌ Failed to load clients')
+  }
   document.getElementById('search-input').addEventListener('input',filterAndRender);
   document.getElementById('membership-filter').addEventListener('change',filterAndRender);
+  const clr=document.getElementById('search-clear');
+  if(clr){ clr.addEventListener('click',()=>{ const s=document.getElementById('search-input'); s.value=''; filterNow(); s.focus(); }); }
 });
 </script>
 <script>function setLanguage(l){ I18N.switchLang(l, ['common','clients']); }</script>
